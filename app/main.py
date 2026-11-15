@@ -295,6 +295,17 @@ def games(user: User = Depends(current_user)) -> dict[str, Any]:
     return {"free_now": free_now, "upcoming": upcoming, "deals": steam}
 
 
+@app.get("/api/surprise")
+def surprise(exclude: str = "", user: User = Depends(current_user)) -> dict[str, Any]:
+    """Rázós meglepetés: egy véletlen jó akció, kupon vagy játék (az utoljára mutatottak nélkül)."""
+    item = search.surprise(_split(exclude), user["id"])
+    if not item:
+        item = search.surprise([], user["id"])  # ha minden ki lett zárva, kezdjük elölről
+    if not item:
+        raise HTTPException(404, "Még nincs akció az adatbázisban. Várd meg az első frissítést!")
+    return {"item": item}
+
+
 @app.get("/api/coupons")
 def coupons(user: User = Depends(current_user)) -> dict[str, Any]:
     items = search.list_deals(kinds=["coupon"], sort="price", limit=200, user_id=user["id"])["items"]

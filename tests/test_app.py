@@ -371,3 +371,23 @@ def test_old_coupons_get_app_link_without_rescrape(client):
     register(client)
     item = client.get("/api/coupons").json()["stores"]["KFC"][0]
     assert item["extra"]["app"]["link"] == "https://kfc.hu/kuponok"
+
+
+def test_surprise_returns_good_random_offer_and_respects_exclude(client):
+    seed()
+    register(client)
+    seen = set()
+    for _ in range(15):
+        item = client.get("/api/surprise").json()["item"]
+        assert item["kind"] in ("deal", "coupon", "free_game")
+        if item["kind"] == "deal" and item["category"] != "jatek":
+            assert item["discount_pct"] >= 25
+        seen.add(item["id"])
+    # kizárás: ha mindent kizárunk, akkor is ad valamit (elölről kezdi)
+    r = client.get("/api/surprise", params={"exclude": ",".join(seen)})
+    assert r.status_code == 200 and r.json()["item"]
+
+
+def test_surprise_empty_db(client):
+    register(client)
+    assert client.get("/api/surprise").status_code == 404

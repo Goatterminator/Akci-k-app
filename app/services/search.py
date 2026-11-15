@@ -26,6 +26,39 @@ def _active_clause() -> tuple[str, list[Any]]:
     return "active=1 AND (valid_to IS NULL OR valid_to >= ?)", [db.now_iso()]
 
 
+def surprise(exclude: list[str] | None = None, user_id: int | None = None) -> dict[str, Any] | None:
+    """Véletlen "meglepetés" ajánlat a rázós funkcióhoz.
+
+    Nem teljesen véletlen: először egy kosarat sorsol (nagy akció / kupon / játék), a nagy
+    akcióknál pedig csak a legjobb ~300 közül választ, hogy mindig érdemes legyen rázni.
+    """
+    import random
+
+    exclude = [e for e in (exclude or []) if e][:30]
+    where, params = _active_clause()
+    ex_sql = f" AND id NOT IN ({','.join('?' * len(exclude))})" if exclude else ""
+    buckets = [
+        (0.6, f"kind='deal' AND category!='jatek' AND discount_pct BETWEEN 25 AND {MAX_SANE_DISCOUNT}",
+         "discount_pct DESC", 300),
+        (0.25, "kind='coupon'", "RANDOM()", 200),
+        (0.15, "(kind='free_game' OR (category='jatek' AND discount_pct >= 50))", "discount_pct DESC", 100),
+    ]
+    order = sorted(buckets, key=lambda b: random.random() ** (1 / b[0]), reverse=True)  # súlyozott sorrend
+    with db.get_conn() as conn:
+        for _, cond, pool_order, pool_size in order:
+            rows = conn.execute(
+                f"SELECT * FROM items WHERE {where} AND {cond}{ex_sql} ORDER BY {pool_order} LIMIT ?",
+                params + exclude + [pool_size],
+            ).fetchall()
+            if rows:
+                item = db.row_to_dict(random.choice(rows))
+                item["favorite"] = bool(user_id and conn.execute(
+                    "SELECT 1 FROM favorites WHERE item_id=? AND user_id=?", (item["id"], user_id)
+                ).fetchone())
+                return item
+    return None
+
+
 def _token_clause(tokens: list[str], mode: str = "AND") -> tuple[str, list[Any]]:
     """Szókezdet-illesztés a normalizált címen (" " + title_norm LIKE "% token%")."""
     if not tokens:

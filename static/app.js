@@ -1051,6 +1051,13 @@ async function renderProfile(root) {
       <label class="field">Téma (topic)<input class="input" id="p-topic" value="${esc(u.ntfy_topic)}" placeholder="akciok-valami-titkos" autocomplete="off"></label>
       <div class="row"><button class="btn primary" id="p-save-topic">Mentés</button><button class="btn" id="p-test">Teszt értesítés</button></div>
     </section>
+    <section class="card-box section" style="display:grid;gap:12px">
+      <div><b>📳 Rázós meglepetés</b><div class="muted small">Rázd meg a telefont (vagy nyomd meg fent a 🎲-t), és egy üveg darabjaira törve előugrik egy véletlen jó akció vagy kupon.</div></div>
+      <label class="toggle"><input type="checkbox" id="p-shake" ${store.get("shake_on", true) ? "checked" : ""}> Rázásra induljon</label>
+      <label class="toggle"><input type="checkbox" id="p-shake-sound" ${store.get("shake_sound", true) ? "checked" : ""}> Üvegcsörömpölés hang</label>
+      ${Surprise.needsPermission() ? `<div class="row"><button class="btn small" id="p-shake-perm">Mozgásérzékelő engedélyezése (iPhone)</button></div>` : ""}
+      <div class="row"><button class="btn small" id="p-shake-try">🎲 Kipróbálom</button></div>
+    </section>
     <form class="card-box section" style="display:grid;gap:12px" id="p-pw">
       <b>🔑 Jelszó módosítása</b>
       <div class="form-grid">
@@ -1071,6 +1078,11 @@ async function renderProfile(root) {
       toast(r.ok ? "Teszt értesítés elküldve 📱" : "Nem sikerült – adj meg egy témát");
     } catch (e) { toast(e.message); }
   };
+  $("#p-shake").onchange = (e) => { store.set("shake_on", e.target.checked); toast(e.target.checked ? "Rázás bekapcsolva 📳" : "Rázás kikapcsolva"); };
+  $("#p-shake-sound").onchange = (e) => store.set("shake_sound", e.target.checked);
+  $("#p-shake-try").onclick = () => $("#surprise-btn").click();
+  const permBtn = $("#p-shake-perm");
+  if (permBtn) permBtn.onclick = async () => toast((await Surprise.requestPermission()) ? "Engedélyezve – rázd meg! 📳" : "Nem kaptunk engedélyt a mozgásérzékelőhöz");
   $("#p-pw").onsubmit = async (e) => {
     e.preventDefault();
     try {
@@ -1131,8 +1143,331 @@ async function showAuth() {
   render();
 }
 
+// ------------------------------------------------------------------ Rázós meglepetés 📳
+// Rázásra (vagy a 🎲 gombra) egy üvegpanel repedezik meg és törik szilánkokra,
+// mögüle egy véletlen jó akció / kupon ugrik elő.
+const Surprise = (() => {
+  let busy = false;
+  let lastShake = 0;
+  let peaks = [];
+  let audio = null;
+  const recent = [];
+  const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const enabled = () => store.get("shake_on", true);
+  const rand = (a, b) => a + Math.random() * (b - a);
+
+  // --- hang: rövid üvegcsörömpölés WebAudio-val (fájl nélkül)
+  function ensureAudio() {
+    try {
+      audio = audio || new (window.AudioContext || window.webkitAudioContext)();
+      if (audio.state === "suspended") audio.resume();
+    } catch { audio = null; }
+  }
+  function glassSound(big) {
+    if (!audio || audio.state !== "running" || !store.get("shake_sound", true)) return;
+    const t0 = audio.currentTime;
+    const len = big ? 0.9 : 0.25;
+    const buf = audio.createBuffer(1, Math.floor(audio.sampleRate * len), audio.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, big ? 3 : 6);
+    const noise = audio.createBufferSource();
+    noise.buffer = buf;
+    const hp = audio.createBiquadFilter();
+    hp.type = "highpass";
+    hp.frequency.value = big ? 2500 : 4000;
+    const gain = audio.createGain();
+    gain.gain.value = big ? 0.35 : 0.25;
+    noise.connect(hp).connect(gain).connect(audio.destination);
+    noise.start(t0);
+    if (big) { // csilingelő szilánkok
+      for (let i = 0; i < 9; i++) {
+        const o = audio.createOscillator();
+        const g = audio.createGain();
+        const t = t0 + rand(0.02, 0.45);
+        o.type = "sine";
+        o.frequency.value = rand(2600, 6200);
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(rand(0.03, 0.08), t + 0.005);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + rand(0.15, 0.4));
+        o.connect(g).connect(audio.destination);
+        o.start(t);
+        o.stop(t + 0.5);
+      }
+    }
+  }
+  const buzz = (p) => { try { navigator.vibrate && navigator.vibrate(p); } catch { /* nem támogatott */ } };
+
+  // --- rázás felismerése
+  function onMotion(e) {
+    if (!enabled() || busy || document.body.classList.contains("auth-mode")) return;
+    const a = e.accelerationIncludingGravity || e.acceleration;
+    if (!a || a.x == null) return;
+    const g = Math.sqrt(a.x * a.x + a.y * a.y + a.z * a.z);
+    const jolt = e.accelerationIncludingGravity ? Math.abs(g - 9.81) : g;
+    const now = Date.now();
+    if (jolt > 13) {
+      peaks = peaks.filter((t) => now - t < 900);
+      peaks.push(now);
+      if (peaks.length >= 3 && now - lastShake > 2500) {
+        lastShake = now;
+        peaks = [];
+        show();
+      }
+    }
+  }
+  function needsPermission() {
+    return typeof DeviceMotionEvent !== "undefined" && typeof DeviceMotionEvent.requestPermission === "function";
+  }
+  async function requestPermission() {
+    // iPhone: csak felhasználói érintésre kérhető engedély
+    if (!needsPermission()) return true;
+    try {
+      const r = await DeviceMotionEvent.requestPermission();
+      store.set("shake_perm", r);
+      return r === "granted";
+    } catch { return false; }
+  }
+  function init() {
+    window.addEventListener("devicemotion", onMotion);
+    // az első érintés feloldja a hangot (böngésző-szabály)
+    window.addEventListener("pointerdown", ensureAudio, { once: true });
+    const btn = $("#surprise-btn");
+    if (btn) btn.onclick = async () => {
+      ensureAudio();
+      if (needsPermission() && store.get("shake_perm", "") !== "granted") await requestPermission();
+      show();
+    };
+    // egyszeri tipp telefonon
+    if ((IS_ANDROID || IS_IOS) && !store.get("shake_tip", false)) {
+      setTimeout(() => {
+        if (document.body.classList.contains("auth-mode")) return;
+        toast(IS_IOS ? "Tipp: nyomd meg a 🎲-t, utána elég megrázni a telefont! 📳" : "Tipp: rázd meg a telefont egy meglepetés akcióért! 📳");
+        store.set("shake_tip", true);
+      }, 4000);
+    }
+  }
+
+  // --- törésminta: sugarak + gyűrűk -> négyszög szilánkok
+  function buildShards(cx, cy, w, h) {
+    const diag = Math.hypot(Math.max(cx, w - cx), Math.max(cy, h - cy));
+    const rays = Math.round(rand(13, 17));
+    const angles = Array.from({ length: rays }, (_, i) => ((i + rand(-0.35, 0.35)) / rays) * Math.PI * 2);
+    const rings = [0, 0.07, 0.17, 0.32, 0.55, 1.15].map((r) => r * diag);
+    const pt = (i, j) => {
+      const ang = angles[i % rays] + (j ? rand(-0.06, 0.06) : 0);
+      const r = j === 0 ? 0 : rings[j] * rand(0.85, 1.15);
+      return [cx + Math.cos(ang) * r, cy + Math.sin(ang) * r];
+    };
+    const grid = angles.map((_, i) => rings.map((_, j) => pt(i, j)));
+    const shards = [];
+    for (let i = 0; i < rays; i++) {
+      for (let j = 0; j < rings.length - 1; j++) {
+        const a = grid[i][j], b = grid[(i + 1) % rays][j], c = grid[(i + 1) % rays][j + 1], d = grid[i][j + 1];
+        const poly = j === 0 ? [a, c, d] : [a, b, c, d];
+        const mx = poly.reduce((s, p) => s + p[0], 0) / poly.length;
+        const my = poly.reduce((s, p) => s + p[1], 0) / poly.length;
+        shards.push({ poly, mx, my, ring: j });
+      }
+    }
+    const cracks = angles.map((ang) => {
+      let x = cx, y = cy, path = `M${cx},${cy}`;
+      const steps = 7;
+      for (let s = 1; s <= steps; s++) {
+        const r = (diag * 1.1 * s) / steps;
+        const a2 = ang + rand(-0.05, 0.05);
+        x = cx + Math.cos(a2) * r;
+        y = cy + Math.sin(a2) * r;
+        path += ` L${x.toFixed(1)},${y.toFixed(1)}`;
+      }
+      return path;
+    });
+    // gyűrű-repedések a belső részen
+    for (let j = 1; j <= 3; j++) {
+      for (let i = 0; i < rays; i++) {
+        if (Math.random() < 0.55) {
+          const a = grid[i][j], b = grid[(i + 1) % rays][j];
+          cracks.push(`M${a[0].toFixed(1)},${a[1].toFixed(1)} L${b[0].toFixed(1)},${b[1].toFixed(1)}`);
+        }
+      }
+    }
+    return { shards, cracks };
+  }
+
+  const faceHtml = `
+    <div class="sp-face">
+      <div class="sp-face-inner">
+        <div class="sp-gift">🎁</div>
+        <div class="sp-face-title">Meglepetés akció</div>
+        <div class="sp-face-sub">Valami jó vár rád…</div>
+      </div>
+    </div>`;
+
+  function revealHtml(item) {
+    const app = item.extra && item.extra.app && item.extra.app.link ? item.extra.app : null;
+    const color = STORE_COLORS()[item.store] || "var(--accent)";
+    const kindLabel = item.kind === "coupon" ? "🍔 Kupon" : item.kind === "free_game" ? "🎮 Ingyen játék" : item.category === "jatek" ? "🎮 Játék akció" : "🔥 Akció";
+    return `
+      <div class="sp-wrap">
+      <div class="sp-glow"></div>
+      <div class="sp-card" role="dialog" aria-label="Meglepetés ajánlat">
+        <div class="sp-kind">${kindLabel}</div>
+        <div class="sp-img">${item.image ? `<img src="${esc(item.image)}" alt="" referrerpolicy="no-referrer" onerror="this.remove()">` : ""}
+          ${discBadge(item)}</div>
+        <div class="sp-body">
+          <span class="store-pill"><i style="background:${color}"></i>${esc(item.store)}</span>
+          <div class="sp-title">${esc(item.title)}</div>
+          ${item.badge ? `<div class="meta"><span class="tag">${esc(item.badge)}</span>${item.valid_to ? `<span class="tag hot">${untilText(item.valid_to)}</span>` : ""}</div>` : ""}
+          <div class="price-row">
+            ${item.price != null ? `<span class="price">${item.price === 0 ? "INGYEN" : fmtPrice(item)}</span>` : `<span class="muted small">ár az appban</span>`}
+            ${item.old_price ? `<span class="old">${fmtPrice(item, "old_price")}</span>` : ""}
+          </div>
+          ${hufHint(item) ? `<div class="muted small">${hufHint(item)}</div>` : ""}
+          <div class="sp-actions">
+            <button class="btn primary" id="sp-open">${app ? `📱 Megnyitás a ${esc(app.name)} appban` : "Megnézem"}</button>
+            <button class="btn" id="sp-again">🎲 Még egyet</button>
+          </div>
+          <button class="sp-close" id="sp-close" aria-label="Bezárás">${ICONS.close}</button>
+        </div>
+      </div>
+      </div>`;
+  }
+
+  function sparkles(layer, cx, cy) {
+    const colors = ["#ffd166", "#ff6a4d", "#ffffff", "#7bdff2", "#f7a6ff"];
+    for (let i = 0; i < 26; i++) {
+      const s = document.createElement("i");
+      s.className = "sp-spark";
+      s.style.left = `${cx}px`;
+      s.style.top = `${cy}px`;
+      s.style.background = colors[i % colors.length];
+      layer.appendChild(s);
+      const ang = rand(0, Math.PI * 2), dist = rand(90, 260);
+      s.animate([
+        { transform: "translate(-50%,-50%) scale(1)", opacity: 1 },
+        { transform: `translate(calc(-50% + ${Math.cos(ang) * dist}px), calc(-50% + ${Math.sin(ang) * dist}px)) scale(0)`, opacity: 0 },
+      ], { duration: rand(600, 1100), easing: "cubic-bezier(.15,.7,.3,1)", fill: "forwards" });
+    }
+  }
+
+  async function show() {
+    if (busy) return;
+    busy = true;
+    if (sheet.open) sheet.close();
+    const itemPromise = api(`/api/surprise?exclude=${encodeURIComponent(recent.join(","))}`).catch((e) => ({ error: e.message }));
+    const w = innerWidth, h = innerHeight;
+    const cx = w * rand(0.4, 0.6), cy = h * rand(0.38, 0.5);
+    const layer = document.createElement("div");
+    layer.className = "sp-layer";
+    document.body.appendChild(layer);
+    const close = () => {
+      layer.classList.add("sp-out");
+      setTimeout(() => layer.remove(), 250);
+      busy = false;
+    };
+
+    if (!reduceMotion) {
+      // 1) üvegpanel beúszik
+      const panel = document.createElement("div");
+      panel.className = "sp-panel";
+      panel.innerHTML = faceHtml;
+      layer.appendChild(panel);
+      panel.animate([{ opacity: 0, transform: "scale(1.04)" }, { opacity: 1, transform: "scale(1)" }], { duration: 220, easing: "ease-out" });
+      await new Promise((r) => setTimeout(r, 380));
+
+      // 2) becsapódás: repedések
+      const { shards, cracks } = buildShards(cx, cy, w, h);
+      const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      svg.setAttribute("class", "sp-cracks");
+      svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
+      svg.innerHTML = cracks.map((d) => `<path d="${d}" pathLength="1"/>`).join("") +
+        `<circle cx="${cx}" cy="${cy}" r="14" class="sp-impact"/>`;
+      layer.appendChild(svg);
+      buzz([25, 30, 40]);
+      glassSound(false);
+      $$("path", svg).forEach((p, i) => p.animate(
+        [{ strokeDashoffset: 1 }, { strokeDashoffset: 0 }],
+        { duration: rand(220, 420), delay: i < 18 ? 0 : 120, easing: "cubic-bezier(.2,.8,.2,1)", fill: "forwards" }));
+      layer.animate([{ transform: "translate(0,0)" }, { transform: "translate(-6px,3px)" }, { transform: "translate(5px,-4px)" },
+        { transform: "translate(-3px,2px)" }, { transform: "translate(0,0)" }], { duration: 260 });
+      await new Promise((r) => setTimeout(r, 520));
+
+      // 3) szétrobban
+      const flash = document.createElement("div");
+      flash.className = "sp-flash";
+      flash.style.setProperty("--x", `${cx}px`);
+      flash.style.setProperty("--y", `${cy}px`);
+      layer.appendChild(flash);
+      flash.animate([{ opacity: 0.9 }, { opacity: 0 }], { duration: 450, fill: "forwards" });
+      panel.remove();
+      svg.remove();
+      buzz([60, 40, 120]);
+      glassSound(true);
+      for (const s of shards) {
+        const el = document.createElement("div");
+        el.className = "sp-shard";
+        el.innerHTML = faceHtml;
+        el.style.clipPath = `polygon(${s.poly.map((p) => `${p[0].toFixed(1)}px ${p[1].toFixed(1)}px`).join(",")})`;
+        el.style.transformOrigin = `${s.mx}px ${s.my}px`;
+        layer.appendChild(el);
+        const dx = s.mx - cx, dy = s.my - cy;
+        const len = Math.hypot(dx, dy) || 1;
+        const force = (5 - s.ring) * rand(60, 120) + rand(40, 120);
+        const vx = (dx / len) * force, vy = (dy / len) * force;
+        const rot = rand(-260, 260);
+        const ax = rand(0, 1).toFixed(2), ay = rand(0, 1).toFixed(2);
+        el.animate([
+          { transform: "translate(0,0) rotate3d(0,0,1,0deg)", opacity: 1 },
+          { transform: `translate(${vx * 0.45}px, ${vy * 0.45 - 30}px) rotate3d(${ax},${ay},1,${rot * 0.4}deg)`, opacity: 1, offset: 0.35 },
+          { transform: `translate(${vx}px, ${vy + h * 0.85}px) rotate3d(${ax},${ay},1,${rot}deg)`, opacity: 0 },
+        ], { duration: rand(900, 1400), delay: s.ring * 25, easing: "cubic-bezier(.25,.6,.45,1)", fill: "forwards" })
+          .finished.then(() => el.remove()).catch(() => {});
+      }
+      await new Promise((r) => setTimeout(r, 450)); // hadd látszódjon a szétrepülés
+    } else {
+      await new Promise((r) => setTimeout(r, 150));
+    }
+
+    // 4) kiderül, mi volt mögötte
+    const data = await itemPromise;
+    if (data.error || !data.item) {
+      toast(data.error || "Most nincs meglepetés. Próbáld később!");
+      close();
+      return;
+    }
+    const item = data.item;
+    recent.push(item.id);
+    if (recent.length > 15) recent.shift();
+    const wrap = document.createElement("div");
+    wrap.className = "sp-reveal";
+    wrap.innerHTML = revealHtml(item);
+    layer.appendChild(wrap);
+    layer.classList.add("sp-dim");
+    const card = $(".sp-wrap", wrap);
+    card.animate([
+      { transform: "scale(.3) rotate(-8deg)", opacity: 0 },
+      { transform: "scale(1.08) rotate(2deg)", opacity: 1, offset: 0.6 },
+      { transform: "scale(.98) rotate(-1deg)", offset: 0.8 },
+      { transform: "scale(1) rotate(0)", opacity: 1 },
+    ], { duration: reduceMotion ? 1 : 650, easing: "cubic-bezier(.2,.9,.3,1.2)", fill: "forwards" });
+    if (!reduceMotion) sparkles(layer, w / 2, h / 2);
+    $("#sp-close", wrap).onclick = close;
+    layer.addEventListener("click", (e) => { if (e.target === wrap || e.target === layer) close(); });
+    $("#sp-again", wrap).onclick = () => { layer.remove(); busy = false; ensureAudio(); show(); };
+    $("#sp-open", wrap).onclick = () => {
+      const app = item.extra && item.extra.app && item.extra.app.link ? item.extra.app : null;
+      layer.remove();
+      busy = false;
+      if (app) openApp(app);
+      else openDetail(item.id);
+    };
+  }
+
+  return { init, show, requestPermission, needsPermission };
+})();
+
 // ------------------------------------------------------------------ indulás
 applyTheme();
+Surprise.init();
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applyTheme);
 window.addEventListener("hashchange", router);
 async function start() {
