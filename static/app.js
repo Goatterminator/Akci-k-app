@@ -71,6 +71,10 @@ async function api(path, opts = {}) {
   }
   if (!res.ok) {
     const d = data && data.detail;
+    // a szerver nem ismeri ezt a végpontot: a weboldal már új, de a szerver még a régi verziót futtatja
+    if (res.status === 404 && d === "Not Found" && path.startsWith("/api/")) {
+      throw new Error("A Pi-n futó szerver még a régi verzió – indítsd újra: sudo systemctl restart akciok");
+    }
     throw new Error(Array.isArray(d) ? "Hibás adatok – ellenőrizd a mezőket." : d || `Hiba (${res.status})`);
   }
   return data;
