@@ -1,5 +1,5 @@
 // Egyszerű service worker: az app héja offline is betölt, az API mindig hálózatról jön.
-const VERSION = "akciok-v5";
+const VERSION = "akciok-v6";
 const SHELL = ["/", "/style.css", "/app.js", "/icon.svg", "/manifest.webmanifest"];
 
 self.addEventListener("install", (e) => {
