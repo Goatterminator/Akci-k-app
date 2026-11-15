@@ -11,6 +11,10 @@ def seed():
     refresh.store_deals("lidl", parse_items(load("lidl_search.json")["items"]), 390)
 
 
+def open_registration(client):
+    assert client.put("/api/settings", json={"allow_registration": "1"}).status_code == 200
+
+
 def register(client, name="admin", pw="titok123"):
     r = client.post("/api/auth/register", json={"username": name, "password": pw})
     assert r.status_code == 200, r.text
@@ -26,6 +30,9 @@ def test_first_user_is_admin_and_others_are_not(client):
     admin = register(client, "admin")
     assert admin["is_admin"] is True
     assert client.get("/api/settings").status_code == 200
+    # az admin létrehozása után a regisztráció alapból zárva van
+    assert client.get("/api/settings").json()["allow_registration"] == "0"
+    client.put("/api/settings", json={"allow_registration": "1"})
 
     client.post("/api/auth/logout")
     user = register(client, "bela")
@@ -47,9 +54,8 @@ def test_api_key_is_never_returned_in_full(client):
     assert db.get_setting("gemini_api_key") == "AIzaSECRET-1234"
 
 
-def test_registration_can_be_disabled(client):
+def test_registration_closed_after_admin_created(client):
     register(client)
-    client.put("/api/settings", json={"allow_registration": "0"})
     client.post("/api/auth/logout")
     r = client.post("/api/auth/register", json={"username": "masik", "password": "jelszo99"})
     assert r.status_code == 403
@@ -65,6 +71,7 @@ def test_login_wrong_password(client):
 def test_deals_feed_and_favorites_are_per_user(client):
     seed()
     register(client, "admin")
+    open_registration(client)
     data = client.get("/api/deals?sort=discount").json()
     assert data["total"] > 0
     top = data["items"][0]
@@ -124,6 +131,7 @@ def test_shopping_plan(client):
 
 def test_manual_deal_permissions(client):
     register(client, "admin")
+    open_registration(client)
     client.post("/api/auth/logout")
     register(client, "bela")
     item_id = client.post("/api/manual", json={"store": "McDonald's", "title": "2 McChicken", "price": 1490}).json()["id"]
@@ -135,3 +143,17 @@ def test_manual_deal_permissions(client):
     client.post("/api/auth/logout")
     client.post("/api/auth/login", json={"username": "admin", "password": "titok123"})
     assert client.delete(f"/api/manual/{item_id}").status_code == 200
+
+
+def test_login_lockout_after_many_failures(client):
+    from app import auth
+
+    auth._failures.clear()
+    register(client, "admin", "titok123")
+    client.post("/api/auth/logout")
+    for _ in range(auth.MAX_FAILURES):
+        assert client.post("/api/auth/login", json={"username": "admin", "password": "rossz999"}).status_code == 401
+    # a helyes jelszó is tiltva a zárolás alatt
+    assert client.post("/api/auth/login", json={"username": "admin", "password": "titok123"}).status_code == 429
+    auth._failures.clear()
+    assert client.post("/api/auth/login", json={"username": "admin", "password": "titok123"}).status_code == 200

@@ -104,10 +104,13 @@ async def register(body: Credentials, request: Request, response: Response) -> d
 
 @app.post("/api/auth/login")
 async def login(body: Credentials, request: Request, response: Response) -> dict[str, Any]:
+    auth.check_lockout(body.username)
     user = await asyncio.to_thread(auth.authenticate, body.username, body.password)
     if not user:
+        auth.record_failure(body.username)
         await asyncio.sleep(0.8)  # lassítja a jelszópróbálgatást
         raise HTTPException(401, "Hibás felhasználónév vagy jelszó.")
+    auth.clear_failures(body.username)
     _set_session(request, response, user["id"])
     return {"user": user}
 

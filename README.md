@@ -14,7 +14,7 @@ Egy helyen mutatja a legdurvább akciókat a nagy budapesti láncoknál, gyorsé
 | 🍔 **Kuponok** | KFC és Burger King app-kuponok. A BK árait a Gemini olvassa ki a kuponképekről. A McDonald's (és bármi más) akciói kézzel is felvehetők. |
 | 🎮 **Játékok** | Az Epic Games ingyenes játékai (most és hamarosan, visszaszámlálóval), a Steam legjobban értékelt akciós és ingyen megtartható játékai. |
 | ⭐ **Mentett** | Kedvenc akciók, felhasználónként. |
-| 👥 **Több felhasználó** | **Az első regisztrált felhasználó az admin.** Csak ő látja a beállításokat (API kulcs, források, felhasználók). |
+| 👥 **Több felhasználó** | **Az első regisztrált felhasználó az admin.** Csak ő látja a beállításokat (API kulcs, források, felhasználók). Utána a regisztráció zárva van, amíg az admin meg nem nyitja. |
 | 📱 **PWA** | Telefonon a kezdőképernyőre tehető, és appként működik. Van világos és sötét téma. |
 
 ## Adatforrások
@@ -90,6 +90,31 @@ A beállítás visszavonása (csak ezt az egy portot törli):
 
 ```bash
 sudo tailscale serve --https=8443 off
+```
+
+### Elérés Tailscale nélkül (nyilvános, Funnel)
+
+Ha telefonon Tailscale nélkül akarod használni (mint a többi projektedet), az app nyilvánossá tehető. Előtte **hozd létre az admin fiókot a Pi-n**, hogy senki ne előzhessen meg:
+
+```bash
+cd ~/Akci-k-app && .venv/bin/python -m app.create_admin
+```
+
+Ezután kapcsold be a Funnelt (a 10000-es helyett a saját HTTPS portodat írd, ha más):
+
+```bash
+sudo tailscale funnel --bg --https=10000 http://127.0.0.1:8090
+```
+
+Biztonság nyilvános elérésnél:
+- az admin létrehozása után **a regisztráció alapból zárva van** (az Admin beállításokban nyitható meg, pl. családtagoknak, utána érdemes visszazárni);
+- 8 hibás belépés után az adott felhasználónév 15 percre zárolódik;
+- minden adat és a Gemini kulcs is csak bejelentkezés után érhető el.
+
+Visszaállítás csak Tailscale-es elérésre:
+
+```bash
+sudo tailscale serve --bg --https=10000 http://127.0.0.1:8090
 ```
 
 Telefonon: Chrome menü → *Hozzáadás a kezdőképernyőhöz*, Safari → *Megosztás → Főképernyőhöz adás*.

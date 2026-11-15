@@ -37,6 +37,42 @@ def verify_password(password: str, stored: str) -> bool:
         return False
 
 
+# ------------------------------------------------------------------ próbálgatás elleni védelem
+# Felhasználónevenként számoljuk a hibás belépéseket (memóriában). Nyilvános (Funnel) elérésnél
+# a botok jelszópróbálgatását lassítja; IP alapján nem számolunk, mert a Tailscale proxy mögött
+# minden kérés a 127.0.0.1-ről jöhet, és akkor mindenkit kizárnánk.
+MAX_FAILURES = 8
+LOCKOUT_SECONDS = 15 * 60
+_failures: dict[str, list[float]] = {}
+
+
+def _recent_failures(username: str, now: float) -> list[float]:
+    key = username.strip().lower()
+    recent = [t for t in _failures.get(key, []) if now - t < LOCKOUT_SECONDS]
+    _failures[key] = recent
+    return recent
+
+
+def check_lockout(username: str) -> None:
+    import time
+
+    if len(_recent_failures(username, time.time())) >= MAX_FAILURES:
+        raise HTTPException(429, "Túl sok sikertelen próbálkozás. Várj 15 percet, és próbáld újra.")
+
+
+def record_failure(username: str) -> None:
+    import time
+
+    now = time.time()
+    _recent_failures(username, now).append(now)
+    if len(_failures) > 5000:  # memóriavédelem
+        _failures.clear()
+
+
+def clear_failures(username: str) -> None:
+    _failures.pop(username.strip().lower(), None)
+
+
 def user_count() -> int:
     with db.get_conn() as conn:
         return conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
@@ -66,6 +102,13 @@ def create_user(username: str, password: str) -> dict[str, Any]:
             "INSERT INTO users(username, pw_hash, is_admin, created) VALUES (?,?,?,?)",
             (username, hash_password(password), 1 if first else 0, db.now_iso()),
         )
+        if first:
+            # Biztonságos alapállapot: az admin létrehozása után a regisztráció zárva van,
+            # az admin a Beállításokban nyithatja meg (pl. családtagoknak).
+            conn.execute(
+                "INSERT INTO settings(key, value) VALUES ('allow_registration', '0') "
+                "ON CONFLICT(key) DO UPDATE SET value='0'"
+            )
         row = conn.execute("SELECT * FROM users WHERE id=?", (cur.lastrowid,)).fetchone()
     return public_user(row)
 
