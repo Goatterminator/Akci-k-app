@@ -57,7 +57,7 @@ async def send_alerts(alerts: list[dict[str, Any]], settings: dict[str, str]) ->
                 await send(
                     user_settings,
                     f"🔔 {a['watch']['query']}: {it['store']}",
-                    f"{it['title']} – {_price(it)}",
+                    f"{it['title']} – {_price(it)}" + (f"\n✨ {a['reason']}" if a.get("reason") else ""),
                     click=it.get("url"),
                 )
         else:

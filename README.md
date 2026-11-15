@@ -11,6 +11,7 @@ Egy helyen mutatja a legdurvább akciókat a nagy budapesti láncoknál, gyorsé
 | 🧺 **Bevásárlólista** | Soronként egy tétel. Megmutatja, melyik boltban a legolcsóbb a teljes kosár, és mennyi lenne vegyesen vásárolva. |
 | ✅ **„Valódi akció?”** | Az app gyűjti az árelőzményt, és jelzi, ha az „eredeti ár” gyanúsan fel lett tornászva. |
 | 🔔 **Figyelő** | Pl. „Nutella max 1500 Ft” vagy „Parkside -30%”. Ha megjelenik egy illő akció, szól az appban és push értesítésben is ([ntfy](https://ntfy.sh)). |
+| ✨ **AI figyelő** | Bárki bekapcsolhatja a saját figyelőjénél. Szabad szöveggel írod le, mit keresel (pl. *„olcsó jó steames játék”*), és minden frissítés után az AI dönti el, melyik új akció illik hozzá. Indoklással szól. A napi AI-keretbe számít. |
 | 🍔 **Kuponok** | KFC és Burger King app-kuponok. A BK árait a Gemini olvassa ki a kuponképekről. A McDonald's (és bármi más) akciói kézzel is felvehetők. |
 | 🎮 **Játékok** | Az Epic Games ingyenes játékai (most és hamarosan, visszaszámlálóval), a Steam legjobban értékelt akciós és ingyen megtartható játékai. |
 | ⭐ **Mentett** | Kedvenc akciók, felhasználónként. |

@@ -99,7 +99,9 @@ CREATE TABLE IF NOT EXISTS watches (
     max_price    REAL,
     min_discount REAL,
     category     TEXT,
-    created      TEXT NOT NULL
+    created      TEXT NOT NULL,
+    use_ai       INTEGER NOT NULL DEFAULT 0,  -- AI figyelő: a Gemini dönti el, mi illik a leíráshoz
+    ai_plan      TEXT                         -- a leírás AI-értelmezése (JSON: kulcsszavak, kategória, boltok, ár)
 );
 
 CREATE TABLE IF NOT EXISTS alerts (
@@ -108,6 +110,7 @@ CREATE TABLE IF NOT EXISTS alerts (
     item_id  TEXT NOT NULL,
     created  TEXT NOT NULL,
     seen     INTEGER NOT NULL DEFAULT 0,
+    reason   TEXT,                            -- AI figyelőnél: miért illik a találat
     UNIQUE (watch_id, item_id)
 );
 
@@ -151,6 +154,14 @@ def _migrate(conn: sqlite3.Connection) -> None:
     user_cols = {r[1] for r in conn.execute("PRAGMA table_info(users)")}
     if "ai_limit" not in user_cols:
         conn.execute("ALTER TABLE users ADD COLUMN ai_limit INTEGER")
+    watch_cols = {r[1] for r in conn.execute("PRAGMA table_info(watches)")}
+    if "use_ai" not in watch_cols:
+        conn.execute("ALTER TABLE watches ADD COLUMN use_ai INTEGER NOT NULL DEFAULT 0")
+    if "ai_plan" not in watch_cols:
+        conn.execute("ALTER TABLE watches ADD COLUMN ai_plan TEXT")
+    alert_cols = {r[1] for r in conn.execute("PRAGMA table_info(alerts)")}
+    if "reason" not in alert_cols:
+        conn.execute("ALTER TABLE alerts ADD COLUMN reason TEXT")
 
 
 def init_db() -> None:

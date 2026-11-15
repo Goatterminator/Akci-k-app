@@ -12,7 +12,7 @@ from .. import db
 from ..categories import normalize
 from ..scrapers import SCRAPERS, SCRAPERS_BY_NAME, Deal, ScrapeContext, SourceBlocked, make_client
 from ..scrapers.base import eur_rate
-from . import gemini, notify
+from . import gemini, notify, quota
 
 log = logging.getLogger("akciok.refresh")
 
@@ -143,13 +143,16 @@ def watch_matches(watch: dict[str, Any], item: dict[str, Any]) -> bool:
     return True
 
 
-def check_watches(item_ids: list[str]) -> list[dict[str, Any]]:
+def check_watches(item_ids: list[str], watch_id: int | None = None) -> list[dict[str, Any]]:
+    """Kulcsszavas (nem AI) figyelők."""
     if not item_ids:
         return []
     new_alerts: list[dict[str, Any]] = []
     with db.get_conn() as conn:
         watches = [dict(r) for r in conn.execute(
-            "SELECT w.*, u.ntfy_topic FROM watches w JOIN users u ON u.id=w.user_id"
+            "SELECT w.*, u.ntfy_topic FROM watches w JOIN users u ON u.id=w.user_id "
+            "WHERE w.use_ai=0 AND (? IS NULL OR w.id=?)",
+            (watch_id, watch_id),
         )]
         if not watches:
             return []
@@ -168,6 +171,97 @@ def check_watches(item_ids: list[str]) -> list[dict[str, Any]]:
                         )
                         if cur.rowcount:
                             new_alerts.append({"watch": w, "item": item})
+    return new_alerts
+
+
+# ------------------------------------------------------------------ AI figyelő
+AI_WATCH_MAX_CANDIDATES = 60
+
+
+def ai_prefilter(plan: dict[str, Any], items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Olcsó, AI nélküli előszűrés az AI figyelőhöz, hogy a Gemini csak releváns jelölteket kapjon.
+
+    Kategória/bolt/ár a terv alapján kötelező; a kulcsszavak csak akkor kötelezők, ha se
+    kategória, se bolt nincs megadva (pl. "olcsó jó steames játék" -> Steam + Videójáték,
+    a "jó"/"olcsó" szavak nem szerepelnek a címekben).
+    """
+    category = plan.get("category") or ""
+    stores = set(plan.get("stores") or [])
+    keywords = [normalize(k) for k in plan.get("keywords") or [] if normalize(k)]
+    max_price, min_price = plan.get("max_price"), plan.get("min_price")
+    if not (category or stores or keywords):
+        return []
+    scored = []
+    for it in items:
+        if category and it.get("category") != category:
+            continue
+        if stores and it.get("store") not in stores:
+            continue
+        price = it.get("price_huf")
+        if max_price is not None and price is not None and price > max_price * 1.15:
+            continue  # kis ráhagyás: az AI dönt a határesetekről
+        if min_price is not None and price is not None and price < min_price:
+            continue
+        title = " " + (it.get("title_norm") or normalize(it.get("title"))) + " "
+        hits = sum(1 for k in keywords if all((" " + w) in title for w in k.split()))
+        if not (category or stores) and not hits:
+            continue
+        scored.append((hits, it.get("discount_pct") or 0, it))
+    scored.sort(key=lambda x: (x[0], x[1]), reverse=True)
+    return [s[2] for s in scored[:AI_WATCH_MAX_CANDIDATES]]
+
+
+async def check_ai_watches(
+    item_ids: list[str], settings: dict[str, str], watch_id: int | None = None
+) -> list[dict[str, Any]]:
+    """AI figyelők: előszűrés, majd a Gemini dönti el, mi illik a leíráshoz.
+    Minden AI-hívás a figyelő tulajdonosának napi AI-keretébe számít."""
+    if not item_ids or not gemini.has_key(settings):
+        return []
+    with db.get_conn() as conn:
+        watches = [dict(r) for r in conn.execute(
+            "SELECT w.*, u.ntfy_topic, u.is_admin, u.ai_limit FROM watches w JOIN users u ON u.id=w.user_id "
+            "WHERE w.use_ai=1 AND (? IS NULL OR w.id=?)",
+            (watch_id, watch_id),
+        )]
+        if not watches:
+            return []
+        items: list[dict[str, Any]] = []
+        for start in range(0, len(item_ids), 500):
+            chunk = item_ids[start:start + 500]
+            items += [dict(r) for r in conn.execute(
+                f"SELECT * FROM items WHERE id IN ({','.join('?' * len(chunk))}) "
+                "AND active=1 AND kind IN ('deal','coupon','free_game')",
+                chunk,
+            )]
+    new_alerts: list[dict[str, Any]] = []
+    for w in watches:
+        try:
+            plan = json.loads(w.get("ai_plan") or "{}")
+        except ValueError:
+            plan = {}
+        candidates = ai_prefilter(plan, items)
+        if not candidates:
+            continue
+        owner = {"id": w["user_id"], "is_admin": bool(w["is_admin"]), "ai_limit": w["ai_limit"]}
+        ok, _ = await asyncio.to_thread(quota.try_consume, owner, settings)
+        if not ok:
+            log.info("AI figyelő #%s kihagyva: a tulajdonos napi AI-kerete elfogyott", w["id"])
+            continue
+        try:
+            matches = await gemini.match_watch(settings, w["query"], candidates)
+        except gemini.GeminiError as exc:
+            log.warning("AI figyelő #%s hiba: %s", w["id"], exc)
+            continue
+        by_id = {c["id"]: c for c in candidates}
+        with db.get_conn() as conn:
+            for m in matches:
+                cur = conn.execute(
+                    "INSERT OR IGNORE INTO alerts(watch_id, item_id, created, reason) VALUES (?,?,?,?)",
+                    (w["id"], m["id"], db.now_iso(), m["reason"] or None),
+                )
+                if cur.rowcount:
+                    new_alerts.append({"watch": w, "item": by_id[m["id"]], "reason": m["reason"]})
     return new_alerts
 
 
@@ -192,6 +286,7 @@ async def run_source(name: str) -> dict[str, Any]:
 
     fresh = await asyncio.to_thread(store_deals, name, deals, eur_rate(settings))
     alerts = await asyncio.to_thread(check_watches, fresh)
+    alerts += await check_ai_watches(fresh, settings)
     record_source(name, True, len(deals), "; ".join(ctx.log[:5]) or None, time.monotonic() - t0)
     if alerts:
         await notify.send_alerts(alerts, settings)

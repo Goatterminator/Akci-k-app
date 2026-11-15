@@ -258,3 +258,102 @@ def test_migration_adds_ai_limit_column(tmp_path, monkeypatch):
     with db.get_conn() as c:
         assert "ai_limit" in {r[1] for r in c.execute("PRAGMA table_info(users)")}
         assert c.execute("SELECT username FROM users").fetchone()[0] == "vince"
+
+
+# ------------------------------------------------------------------ AI figyelő
+def seed_steam():
+    from app.scrapers.games import parse_steam
+
+    refresh.store_deals("steam", parse_steam(load("steam_results.html"), 390), 390)
+
+
+def fake_ai(monkeypatch, seen_candidates):
+    from app.services import gemini
+
+    async def fake_interpret(settings, query):
+        return {"keywords": ["jatek"], "category": "jatek", "stores": ["Steam"], "max_price": None, "sort": "discount"}
+
+    async def fake_match(settings, description, candidates, limit=10):
+        seen_candidates.extend(candidates)
+        return [{"id": candidates[0]["id"], "reason": "jó értékelés, -90%"}]
+
+    monkeypatch.setattr(gemini, "interpret_query", fake_interpret)
+    monkeypatch.setattr(gemini, "match_watch", fake_match)
+
+
+def test_ai_watch_uses_plan_and_ai_decision(client, monkeypatch):
+    seen = []
+    fake_ai(monkeypatch, seen)
+    seed()
+    seed_steam()
+    register(client, "admin")
+    client.put("/api/settings", json={"gemini_api_key": "AIzaTEST"})
+    r = client.post("/api/watches", json={"query": "olcsó jó steames játék", "use_ai": True})
+    assert r.status_code == 200, r.text
+    assert r.json()["matches_now"] == 1 and r.json()["plan"]["stores"] == ["Steam"]
+    # az AI csak Steam jelölteket kapott (az élelmiszerek ki lettek szűrve)
+    assert seen and all(c["store"] == "Steam" for c in seen)
+    data = client.get("/api/watches").json()
+    assert data["watches"][0]["use_ai"] == 1 and data["watches"][0]["ai_plan"]["category"] == "jatek"
+    assert data["alerts"][0]["reason"] == "jó értékelés, -90%" and data["alerts"][0]["watch_ai"] is True
+
+
+def test_ai_watch_runs_on_new_deals_and_counts_quota(client, monkeypatch):
+    import asyncio
+
+    from app import db
+    from app.scrapers.base import Deal
+
+    seen = []
+    fake_ai(monkeypatch, seen)
+    register(client, "admin")
+    client.put("/api/settings", json={"gemini_api_key": "AIzaTEST"})
+    client.post("/api/auth/logout")
+    bela = register(client, "bela")
+    assert client.post("/api/watches", json={"query": "olcsó jó steames játék", "use_ai": True}).status_code == 200
+    # új Steam akció érkezik a frissítéskor
+    new = [Deal(id="steam:Steam:999", source="steam", store="Steam", title="Új Játék", category="jatek",
+                price=1.99, old_price=19.99, currency="EUR").finalize()]
+    fresh = refresh.store_deals("steam", new, 390)
+    alerts = asyncio.run(refresh.check_ai_watches(fresh, db.get_settings()))
+    assert len(alerts) == 1 and alerts[0]["item"]["title"] == "Új Játék" and alerts[0]["reason"]
+    # értelmezés + a frissítéskori döntés = 2 AI-hívás bela keretéből
+    assert client.get("/api/meta").json()["ai_today"] == 2
+    # elfogyott keret: az AI figyelő kimarad, nem hibázik
+    with db.get_conn() as conn:
+        conn.execute("UPDATE users SET ai_limit=2 WHERE id=?", (bela["id"],))
+    more = [Deal(id="steam:Steam:1000", source="steam", store="Steam", title="Másik Játék", category="jatek",
+                 price=0.99, old_price=9.99, currency="EUR").finalize()]
+    fresh = refresh.store_deals("steam", new + more, 390)
+    assert asyncio.run(refresh.check_ai_watches(fresh, db.get_settings())) == []
+
+
+def test_ai_watch_requires_key_and_quota(client):
+    register(client, "admin")
+    r = client.post("/api/watches", json={"query": "olcsó jó játék", "use_ai": True})
+    assert r.status_code == 400 and "Gemini" in r.json()["detail"]
+
+
+def test_keyword_watch_does_not_touch_other_users_watches(client):
+    seed()
+    register(client, "admin")
+    client.post("/api/watches", json={"query": "kivi"})
+    client.post("/api/auth/logout")
+    register(client, "bela")
+    client.post("/api/watches", json={"query": "kivi"})
+    client.post("/api/watches", json={"query": "sargarepa"})
+    client.post("/api/auth/logout")
+    client.post("/api/auth/login", json={"username": "admin", "password": "titok123"})
+    assert len(client.get("/api/watches").json()["alerts"]) == 1
+
+
+def test_ai_prefilter():
+    items = [
+        {"id": "a", "store": "Steam", "category": "jatek", "title": "Game", "price_huf": 800, "discount_pct": 80},
+        {"id": "b", "store": "Lidl", "category": "elelmiszer", "title": "Kivi", "price_huf": 99, "discount_pct": 66},
+        {"id": "c", "store": "Steam", "category": "jatek", "title": "Drága", "price_huf": 20000, "discount_pct": 10},
+    ]
+    got = refresh.ai_prefilter({"stores": ["Steam"], "category": "jatek", "max_price": 3000}, items)
+    assert [i["id"] for i in got] == ["a"]
+    assert refresh.ai_prefilter({}, items) == []  # túl általános: nem hívjuk az AI-t
+    assert [i["id"] for i in refresh.ai_prefilter({"keywords": ["kivi"]}, items)] == ["b"]

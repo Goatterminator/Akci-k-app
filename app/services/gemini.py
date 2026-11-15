@@ -19,7 +19,7 @@ from typing import Any
 import httpx
 
 from .. import db
-from ..categories import CATEGORIES
+from ..categories import CATEGORIES, STORES
 
 log = logging.getLogger("akciok.gemini")
 
@@ -233,6 +233,7 @@ async def generate(
 
 # ------------------------------------------------------------------ AI kereső
 _CATEGORY_KEYS = [c["key"] for c in CATEGORIES]
+_STORE_NAMES = list(STORES)
 
 INTERPRET_SCHEMA = {
     "type": "OBJECT",
@@ -243,6 +244,11 @@ INTERPRET_SCHEMA = {
             "description": "Magyar keresőszavak, ahogy termékcímekben szerepelnek (szinonimák, márkák, ragozatlan alak).",
         },
         "category": {"type": "STRING", "enum": _CATEGORY_KEYS + ["any"]},
+        "stores": {
+            "type": "ARRAY",
+            "items": {"type": "STRING", "enum": _STORE_NAMES},
+            "description": "Csak ha a kérés konkrét boltot/láncot említ (pl. 'steames' -> Steam).",
+        },
         "max_price": {"type": "NUMBER", "nullable": True},
         "min_price": {"type": "NUMBER", "nullable": True},
         "sort": {"type": "STRING", "enum": ["discount", "price", "unit_price"]},
@@ -268,7 +274,7 @@ RANK_SCHEMA = {
 
 
 async def interpret_query(settings: dict[str, str], query: str) -> dict[str, Any]:
-    cache_key = "interpret:" + hashlib.sha1(query.lower().encode()).hexdigest()
+    cache_key = "interpret2:" + hashlib.sha1(query.lower().encode()).hexdigest()
     cached = db.cache_get(cache_key, max_age_s=7 * 86400)
     if cached:
         return cached
@@ -280,6 +286,9 @@ async def interpret_query(settings: dict[str, str], query: str) -> dict[str, Any
         "mosókapszula, Ariel, Persil). Ha ár szerepel a kérésben, töltsd ki a max_price/min_price "
         "mezőt forintban (euró esetén váltsd át ~390 Ft/€ árfolyamon). Válassz kategóriát, ha "
         "egyértelmű, különben 'any'. Kategóriák: " + ", ".join(_CATEGORY_KEYS) + ". "
+        "Ha a kérés konkrét boltot vagy platformot említ (pl. 'steames' -> Steam, 'lidlis' -> Lidl, "
+        "'epices' -> Epic Games), add meg a stores listában; különben hagyd üresen. Boltok: "
+        + ", ".join(_STORE_NAMES) + ". "
         "A sort mező: 'unit_price' ha a legolcsóbb egységár érdekli, 'price' ha a legolcsóbb, "
         "különben 'discount'."
     )
@@ -287,6 +296,7 @@ async def interpret_query(settings: dict[str, str], query: str) -> dict[str, Any
     result["keywords"] = [k for k in (result.get("keywords") or []) if isinstance(k, str) and k.strip()][:15]
     if result.get("category") not in _CATEGORY_KEYS:
         result["category"] = ""
+    result["stores"] = [s for s in (result.get("stores") or []) if s in STORES]
     db.cache_set(cache_key, result)
     return result
 
@@ -303,7 +313,51 @@ def _fmt_item(it: dict[str, Any]) -> str:
         parts.append(f"egységár {it['unit_price']:.0f} Ft/{it['unit']}")
     if it.get("badge"):
         parts.append(it["badge"])
+    if it.get("description"):  # pl. Steam értékelés: "Rendkívül pozitív – 95%..."
+        parts.append(str(it["description"])[:90])
     return " | ".join(parts)
+
+
+MATCH_SCHEMA = {
+    "type": "OBJECT",
+    "properties": {
+        "matches": {
+            "type": "ARRAY",
+            "items": {
+                "type": "OBJECT",
+                "properties": {"id": {"type": "STRING"}, "reason": {"type": "STRING"}},
+                "required": ["id", "reason"],
+            },
+        }
+    },
+    "required": ["matches"],
+}
+
+
+async def match_watch(
+    settings: dict[str, str], description: str, candidates: list[dict[str, Any]], limit: int = 10
+) -> list[dict[str, str]]:
+    """AI figyelő: a jelöltek közül azok, amelyek TÉNYLEG megfelelnek a leírásnak (indoklással)."""
+    listing = "\n".join(_fmt_item(c) for c in candidates)
+    prompt = (
+        "Egy akciófigyelő app értesítést küld a felhasználónak, ha új ajánlat felel meg a figyelőjének.\n"
+        f"A figyelő leírása: \"{description}\"\n\n"
+        "Az alábbi ajánlatok közül válaszd ki azokat, amelyek TÉNYLEG megfelelnek a leírásnak. "
+        "Légy szigorú, inkább kevesebbet válassz: csak olyanról szóljunk, aminek a felhasználó "
+        "valószínűleg örülne. Értelmezés: 'olcsó' = alacsony ár vagy nagy kedvezmény; 'jó' = jó "
+        "minőség, játéknál jó értékelés (pl. 'Nagyon pozitív', 80% felett). Legfeljebb "
+        f"{limit} találat. Minden találathoz írj egy rövid magyar indoklást (max. 12 szó, pl. ár, "
+        "kedvezmény, értékelés). Ha semmi sem illik, adj üres listát.\n"
+        "Formátum soronként: id | bolt | név | ár | ...\n\n" + listing
+    )
+    result = await generate(settings, [{"text": prompt}], MATCH_SCHEMA, temperature=0.1)
+    valid = {c["id"] for c in candidates}
+    out, seen = [], set()
+    for m in result.get("matches") or []:
+        if m.get("id") in valid and m["id"] not in seen:
+            seen.add(m["id"])
+            out.append({"id": m["id"], "reason": str(m.get("reason") or "")[:160]})
+    return out[:limit]
 
 
 async def rank_candidates(

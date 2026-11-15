@@ -22,7 +22,7 @@ from .auth import current_user, require_admin
 from .categories import CATEGORIES, CATEGORY_KEYS, STORES, normalize
 from .scrapers import SCRAPERS, SCRAPERS_BY_NAME
 from .scrapers.base import Deal
-from .services import gemini, notify, refresh, search
+from .services import gemini, notify, quota, refresh, search
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("akciok")
@@ -314,43 +314,19 @@ class AiSearchBody(BaseModel):
     only_deals: bool = False
 
 
-def _effective_ai_limit(user: dict[str, Any], settings: dict[str, str]) -> Optional[int]:
-    """A felhasználó napi AI-kerete; None = korlátlan (admin, vagy 0 a beállításban)."""
-    if user.get("is_admin"):
-        return None
-    if user.get("ai_limit") is not None:
-        return max(0, int(user["ai_limit"]))  # egyedi keret; 0 = nem használhat AI-t
-    try:
-        limit = int(float(settings.get("ai_daily_limit") or 0))
-    except ValueError:
-        limit = 30
-    return limit if limit > 0 else None  # közös keret; 0 = korlátlan
-
-
-def _ai_used_today(user_id: int) -> int:
-    with db.get_conn() as conn:
-        row = conn.execute(
-            "SELECT count FROM ai_usage WHERE user_id=? AND day=?", (user_id, db.today())
-        ).fetchone()
-    return row["count"] if row else 0
+_effective_ai_limit = quota.effective_limit
+_ai_used_today = quota.used_today
 
 
 def _use_ai_quota(user: User, settings: dict[str, str]) -> None:
     """Napi AI-keret ellenőrzése és számlálása (az admint is számoljuk a statisztikához,
     de neki nincs korlátja), hogy a regisztráltak ne merítsék ki a Gemini kulcsot."""
-    limit = _effective_ai_limit(user, settings)
-    day = db.today()
-    with db.get_conn() as conn:
-        row = conn.execute("SELECT count FROM ai_usage WHERE user_id=? AND day=?", (user["id"], day)).fetchone()
-        if limit is not None and row and row["count"] >= limit:
-            raise HTTPException(429, f"Elérted a napi {limit} AI keresést. Holnap újra használhatod, "
-                                     "addig a sima keresés működik.")
-        conn.execute(
-            "INSERT INTO ai_usage(user_id, day, count) VALUES (?,?,1) "
-            "ON CONFLICT(user_id, day) DO UPDATE SET count=count+1",
-            (user["id"], day),
-        )
-        conn.execute("DELETE FROM ai_usage WHERE day < date('now', '-30 day')")
+    ok, limit = quota.try_consume(user, settings)
+    if not ok:
+        if limit == 0:
+            raise HTTPException(403, "Az admin nálad kikapcsolta az AI funkciókat.")
+        raise HTTPException(429, f"Elérted a napi {limit} AI keresést. Holnap újra használhatod, "
+                                 "addig a sima keresés működik.")
 
 
 def _mark_favorites(items: list[dict[str, Any]], user_id: int) -> None:
@@ -384,9 +360,16 @@ async def ai_search(body: AiSearchBody, user: User = Depends(current_user)) -> d
         cat = category or (plan.get("category") or "")
         max_price = body.max_price if body.max_price is not None else plan.get("max_price")
         min_price = body.min_price if body.min_price is not None else plan.get("min_price")
-        kwargs = dict(min_price=min_price, max_price=max_price, stores=body.stores,
+        stores = body.stores or plan.get("stores") or []
+        kwargs = dict(min_price=min_price, max_price=max_price, stores=stores,
                       include_normal=not body.only_deals, limit=120)
         candidates = await asyncio.to_thread(search.keyword_candidates, keywords, category=cat, **kwargs)
+        if not candidates and (cat or stores):
+            # pl. "olcsó jó steames játék": nincs terméknév, de van bolt/kategória -> azok akcióiból válogat
+            candidates = (await asyncio.to_thread(
+                lambda: search.list_deals(category=cat, stores=stores, kinds=["deal", "free_game", "coupon"],
+                                          min_price=min_price, max_price=max_price, sort="discount", limit=120)
+            ))["items"]
         if not candidates and cat and not category:
             # a modell által tippelt kategória túl szűk lehetett
             candidates = await asyncio.to_thread(search.keyword_candidates, keywords, **kwargs)
@@ -479,22 +462,29 @@ def favorite_remove(item_id: str, user: User = Depends(current_user)) -> dict[st
 
 # ------------------------------------------------------------------ figyelők / riasztások
 class WatchBody(BaseModel):
-    query: str = Field(..., min_length=2, max_length=100)
+    query: str = Field(..., min_length=2, max_length=200)
     max_price: Optional[float] = None
     min_discount: Optional[float] = None
     category: str = ""
+    use_ai: bool = False  # AI figyelő: szabad szöveges leírás, a Gemini dönti el, mi illik
 
 
 @app.get("/api/watches")
 def watches_list(user: User = Depends(current_user)) -> dict[str, Any]:
     with db.get_conn() as conn:
-        watches = [dict(r) for r in conn.execute(
-            "SELECT * FROM watches WHERE user_id=? ORDER BY created DESC", (user["id"],)
-        )]
+        watches = []
+        for r in conn.execute("SELECT * FROM watches WHERE user_id=? ORDER BY created DESC", (user["id"],)):
+            w = dict(r)
+            try:
+                w["ai_plan"] = json.loads(w["ai_plan"]) if w.get("ai_plan") else None
+            except ValueError:
+                w["ai_plan"] = None
+            watches.append(w)
         alerts = [
-            {**db.row_to_dict(r), "alert_id": r["alert_id"], "seen": r["seen"], "watch_query": r["watch_query"]}
+            {**db.row_to_dict(r), "alert_id": r["alert_id"], "seen": r["seen"],
+             "watch_query": r["watch_query"], "reason": r["reason"], "watch_ai": bool(r["watch_ai"])}
             for r in conn.execute(
-                "SELECT i.*, a.id alert_id, a.seen, w.query watch_query "
+                "SELECT i.*, a.id alert_id, a.seen, a.reason, w.query watch_query, w.use_ai watch_ai "
                 "FROM alerts a JOIN items i ON i.id=a.item_id JOIN watches w ON w.id=a.watch_id "
                 "WHERE w.user_id=? ORDER BY a.created DESC LIMIT 100",
                 (user["id"],),
@@ -506,20 +496,45 @@ def watches_list(user: User = Depends(current_user)) -> dict[str, Any]:
 
 @app.post("/api/watches")
 async def watch_add(body: WatchBody, user: User = Depends(current_user)) -> dict[str, Any]:
+    query = body.query.strip()
+    category = body.category if body.category in CATEGORY_KEYS else None
+    if not body.use_ai and len(query) > 100:
+        raise HTTPException(400, "A kulcsszó legfeljebb 100 karakter lehet.")
+    plan = None
+    settings = db.get_settings()
+    if body.use_ai:
+        if not gemini.has_key(settings):
+            raise HTTPException(400, "Az AI figyelőhöz az adminnak be kell állítania a Gemini kulcsot.")
+        _use_ai_quota(user, settings)  # a leírás értelmezése 1 AI-hívás
+        try:
+            plan = await gemini.interpret_query(settings, query)
+        except gemini.GeminiError as exc:
+            raise HTTPException(502, str(exc)) from exc
+        # a kézzel megadott szűrők felülírják az AI értelmezését
+        if category:
+            plan["category"] = category
+        if body.max_price is not None:
+            plan["max_price"] = body.max_price
+        if not (plan.get("category") or plan.get("stores") or plan.get("keywords")):
+            raise HTTPException(400, "Ebből a leírásból nem derült ki, mit keresel. Írd le konkrétabban "
+                                     "(pl. termék, bolt vagy kategória).")
     with db.get_conn() as conn:
         cur = conn.execute(
-            "INSERT INTO watches(user_id, query, max_price, min_discount, category, created) "
-            "VALUES (?,?,?,?,?,?)",
-            (user["id"], body.query.strip(), body.max_price, body.min_discount,
-             body.category if body.category in CATEGORY_KEYS else None, db.now_iso()),
+            "INSERT INTO watches(user_id, query, max_price, min_discount, category, created, use_ai, ai_plan) "
+            "VALUES (?,?,?,?,?,?,?,?)",
+            (user["id"], query, body.max_price, body.min_discount, category, db.now_iso(),
+             1 if body.use_ai else 0, json.dumps(plan, ensure_ascii=False) if plan else None),
         )
         watch_id = cur.lastrowid
         ids = [r[0] for r in conn.execute(
             "SELECT id FROM items WHERE active=1 AND kind IN ('deal','coupon','free_game')"
         )]
     # a már most is elérhető találatokat is felvesszük (push értesítés nélkül)
-    found = await asyncio.to_thread(refresh.check_watches, ids)
-    return {"id": watch_id, "matches_now": sum(1 for a in found if a["watch"]["id"] == watch_id)}
+    if body.use_ai:
+        found = await refresh.check_ai_watches(ids, settings, watch_id=watch_id)
+    else:
+        found = await asyncio.to_thread(refresh.check_watches, ids, watch_id)
+    return {"id": watch_id, "matches_now": len(found), "plan": plan}
 
 
 @app.delete("/api/watches/{watch_id}")

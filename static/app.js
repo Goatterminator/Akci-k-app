@@ -739,48 +739,81 @@ async function renderFavorites(root) {
 async function renderWatches(root) {
   const params = new URLSearchParams(location.hash.split("?")[1] || "");
   const data = await api("/api/watches");
+  const aiOn = store.get("watch_ai", false) && META.ai_enabled;
+  const catLabel = (k) => META.categories.find((c) => c.key === k)?.label;
+  const planText = (p) => !p ? "" : [
+    p.stores && p.stores.length ? p.stores.join(", ") : "",
+    p.category ? catLabel(p.category) : "",
+    p.max_price ? `max ${fmtNum(p.max_price)} Ft` : "",
+    p.keywords && p.keywords.length ? `„${p.keywords.slice(0, 4).join(", ")}”` : "",
+  ].filter(Boolean).join(" · ");
   root.innerHTML = `
     <form class="card-box" id="w-form" style="display:grid;gap:12px">
       <div><b>Új figyelő</b> <span class="muted small">Szólunk, ha új akció jelenik meg erre: itt az appban, és push értesítésben is, ha a <a href="#/profil">Profilban</a> beállítottad az ntfy-t.</span></div>
+      <div>
+        <label class="toggle"><input type="checkbox" id="w-ai" ${aiOn ? "checked" : ""} ${META.ai_enabled ? "" : "disabled"}> <b>✨ AI figyelő</b></label>
+        <div class="muted small" style="margin-top:4px">${META.ai_enabled ? "Írd le szabadon, mit keresel (pl. „olcsó jó steames játék”), és az AI dönti el, melyik új akció illik hozzá." : "Az admin még nem állított be Gemini kulcsot."}</div>
+      </div>
       <div class="form-grid">
-        <label class="field" style="grid-column:1/-1">Kulcsszó<input class="input" name="query" required minlength="2" placeholder="pl. Nutella, Parkside fúró, Pampers 4" value="${esc(params.get("q") || "")}"></label>
+        <label class="field" style="grid-column:1/-1"><span id="w-qlabel">${aiOn ? "Mit keresel? (szabad szöveg)" : "Kulcsszó"}</span>
+          <input class="input" name="query" required minlength="2" maxlength="200" id="w-q"
+            placeholder="${aiOn ? "pl. olcsó, jó értékelésű Steam játék" : "pl. Nutella, Parkside fúró, Pampers 4"}" value="${esc(params.get("q") || "")}"></label>
         <label class="field">Max. ár (Ft)<input class="input" name="max_price" type="number" min="0" inputmode="numeric"></label>
-        <label class="field">Min. kedvezmény (%)<input class="input" name="min_discount" type="number" min="0" max="99" inputmode="numeric"></label>
-        <label class="field">Kategória<select class="select" name="category"><option value="">Bármelyik</option>
+        <label class="field" id="w-mind" ${aiOn ? "hidden" : ""}>Min. kedvezmény (%)<input class="input" name="min_discount" type="number" min="0" max="99" inputmode="numeric"></label>
+        <label class="field">Kategória<select class="select" name="category"><option value="">${aiOn ? "Az AI dönti el" : "Bármelyik"}</option>
           ${META.categories.map((c) => `<option value="${c.key}">${c.icon} ${c.label}</option>`).join("")}</select></label>
       </div>
-      <div class="row"><button class="btn primary" type="submit">Figyelő hozzáadása</button></div>
+      <div class="privacy-note small" id="w-ainote" ${aiOn ? "" : "hidden"}><span>🔒</span><span><b>Ne írj be személyes adatot.</b> A leírást a Google Gemini dolgozza fel. Az AI figyelő minden frissítéskor, ha van új jelölt, 1 AI-keresést használ a napi keretedből${META.ai_limit != null ? ` (ma: ${META.ai_today} / ${META.ai_limit})` : ""}.</span></div>
+      <div class="row"><button class="btn primary" type="submit" id="w-submit">Figyelő hozzáadása</button></div>
     </form>
     <section class="section">
       <div class="section-head"><h2>Figyelőid</h2></div>
       ${data.watches.length ? `<div class="card-box list">${data.watches.map((w) => `
-        <div class="list-row"><div class="grow"><div class="t">🔔 ${esc(w.query)}</div>
-          <div class="s">${[w.max_price ? `max ${fmtNum(w.max_price)} Ft` : "", w.min_discount ? `min -${w.min_discount}%` : "",
-            w.category ? META.categories.find((c) => c.key === w.category)?.label : ""].filter(Boolean).join(" · ") || "bármilyen akció"}</div></div>
+        <div class="list-row"><div class="grow"><div class="t">${w.use_ai ? "✨" : "🔔"} ${esc(w.query)} ${w.use_ai ? '<span class="tag hot">AI</span>' : ""}</div>
+          <div class="s">${w.use_ai
+            ? (planText(w.ai_plan) ? `AI értelmezése: ${esc(planText(w.ai_plan))}` : "AI figyelő")
+            : [w.max_price ? `max ${fmtNum(w.max_price)} Ft` : "", w.min_discount ? `min -${w.min_discount}%` : "",
+               w.category ? catLabel(w.category) : ""].filter(Boolean).join(" · ") || "bármilyen akció"}</div></div>
           <button class="btn small ghost" data-del="${w.id}">Törlés</button></div>`).join("")}</div>`
         : `<div class="muted">Még nincs figyelőd.</div>`}
     </section>
     <section class="section">
       <div class="section-head"><h2>Találatok</h2><span class="sub">${data.alerts.filter((a) => !a.seen).length} új</span></div>
-      ${data.alerts.length ? `<div class="grid" id="w-alerts">${data.alerts.map((a) => dealCard({ ...a, badge: (a.seen ? "" : "ÚJ · ") + "🔔 " + a.watch_query })).join("")}</div>`
+      ${data.alerts.length ? `<div class="grid" id="w-alerts">${data.alerts.map((a) =>
+        dealCard({ ...a, badge: (a.seen ? "" : "ÚJ · ") + (a.watch_ai ? "✨ " : "🔔 ") + a.watch_query }, { reason: a.reason })).join("")}</div>`
         : `<div class="muted">Amint valami megfelel a figyelőidnek, itt jelenik meg.</div>`}
     </section>`;
   const alertsEl = $("#w-alerts");
   if (alertsEl) bindCards(alertsEl);
+  $("#w-ai").onchange = (e) => {
+    store.set("watch_ai", e.target.checked);
+    const typed = $("#w-q").value.trim();  // a beírt szöveg ne vesszen el váltáskor
+    history.replaceState(null, "", typed ? `#/figyelo?q=${encodeURIComponent(typed)}` : "#/figyelo");
+    renderWatches(root);
+  };
   $("#w-form").onsubmit = async (e) => {
     e.preventDefault();
     const fd = Object.fromEntries(new FormData(e.target));
+    const useAi = $("#w-ai").checked;
     const body = {
-      query: fd.query.trim(), category: fd.category,
+      query: fd.query.trim(), category: fd.category, use_ai: useAi,
       max_price: fd.max_price ? Number(fd.max_price) : null,
       min_discount: fd.min_discount ? Number(fd.min_discount) : null,
     };
+    const btn = $("#w-submit");
+    btn.disabled = true;
+    if (useAi) btn.innerHTML = '<span class="spinner"></span> Az AI értelmezi és átnézi a mostani akciókat…';
     try {
       const r = await api("/api/watches", { method: "POST", body });
-      toast(r.matches_now ? `Figyelő kész – már most ${r.matches_now} találat!` : "Figyelő kész ✔");
+      toast(r.matches_now ? `Figyelő kész – már most ${r.matches_now} találat!` : "Figyelő kész ✔ Szólunk, ha lesz találat.");
       history.replaceState(null, "", "#/figyelo");
+      await loadMeta();
       renderWatches(root);
-    } catch (err) { toast(err.message); }
+    } catch (err) {
+      toast(err.message);
+      btn.disabled = false;
+      btn.textContent = "Figyelő hozzáadása";
+    }
   };
   $$("[data-del]", root).forEach((b) => (b.onclick = async () => {
     await api(`/api/watches/${b.dataset.del}`, { method: "DELETE" });
