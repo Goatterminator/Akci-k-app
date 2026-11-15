@@ -1,6 +1,6 @@
 """Akciók app – FastAPI szerver.
 
-Indítás:  python -m app.main     (vagy: uvicorn app.main:app --host 0.0.0.0 --port 8080)
+Indítás:  python -m app.main     (vagy: uvicorn app.main:app --host 0.0.0.0 --port 8090)
 """
 from __future__ import annotations
 
@@ -597,9 +597,28 @@ def service_worker() -> FileResponse:
 app.mount("/", StaticFiles(directory=config.STATIC_DIR, html=True), name="static")
 
 
+def _port_free(host: str, port: int) -> bool:
+    import socket
+
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        try:
+            sock.bind((host, port))
+        except OSError:
+            return False
+    return True
+
+
 def run() -> None:
+    import sys
+
     import uvicorn
 
+    if not _port_free(config.HOST, config.PORT):
+        sys.exit(
+            f"\n!! A(z) {config.PORT} port már foglalt (valószínűleg egy másik projekted használja).\n"
+            f"   Állíts be másikat a .env fájlban (pl. PORT={config.PORT + 1}), vagy futtasd így:\n"
+            f"   PORT={config.PORT + 1} python -m app.main\n"
+        )
     uvicorn.run("app.main:app", host=config.HOST, port=config.PORT, log_level="info",
                 proxy_headers=True, forwarded_allow_ips="127.0.0.1")
 

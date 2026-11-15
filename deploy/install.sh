@@ -16,7 +16,8 @@ port_busy() {
   fi
 }
 
-# Port választás: 1) PORT=... környezeti változó, 2) korábbi telepítés .env-je, 3) első szabad 8080-tól.
+# Port választás: 1) PORT=... környezeti változó, 2) korábbi telepítés .env-je, 3) első szabad 8090-től
+# (a 8080-at szándékosan kerüljük, mert gyakran foglalt).
 # Így nem ütközik a Pi-n már futó más projektekkel.
 if [ -n "${PORT:-}" ]; then
   CHOSEN="$PORT"
@@ -37,11 +38,11 @@ if [ -n "$CHOSEN" ] && port_busy "$CHOSEN"; then
   CHOSEN=""
 fi
 if [ -z "$CHOSEN" ]; then
-  for p in $(seq 8080 8099); do
+  for p in $(seq 8090 8119); do
     if ! port_busy "$p"; then CHOSEN="$p"; break; fi
   done
 fi
-[ -z "$CHOSEN" ] && { echo "Nem találtam szabad portot 8080-8099 között. Adj meg egyet: PORT=9123 bash deploy/install.sh"; exit 1; }
+[ -z "$CHOSEN" ] && { echo "Nem találtam szabad portot 8090-8119 között. Adj meg egyet: PORT=9123 bash deploy/install.sh"; exit 1; }
 PORT="$CHOSEN"
 
 echo "==> Akciók app telepítése ide: $APP_DIR (felhasználó: $APP_USER, port: $PORT)"

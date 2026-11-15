@@ -54,7 +54,7 @@ A telepítő létrehozza a Python környezetet, és `akciok` néven systemd szol
 
 A telepítő úgy készült, hogy **ne zavarja a meglévő projektjeidet**:
 
-- **Port:** ha a 8080 foglalt, automatikusan az első szabad portot választja (8080–8099), és elmenti a `.env`-be, így frissítéskor is ugyanaz marad. Ha magad akarod megadni:
+- **Port:** alapból a **8090**-et használja (a 8080-at szándékosan kerüli). Ha az is foglalt, automatikusan az első szabad portot választja (8090–8119), és elmenti a `.env`-be, így frissítéskor is ugyanaz marad. Ha magad akarod megadni:
 
   ```bash
   PORT=8090 bash deploy/install.sh
@@ -76,15 +76,15 @@ Ezután nyisd meg a böngészőben a `http://<pi-tailscale-neve>:<port>` címet 
 
 ### HTTPS Tailscale-en (ajánlott, külön porton)
 
-Az app telefonra telepítéséhez (PWA) HTTPS kell. Mivel a Tailscale címeden már vannak projektek, az appot **külön HTTPS porton** tedd ki, hogy a meglévő (443-as) beállításod megmaradjon. Az alábbi példában a 8080 helyére a telepítő által kiírt portot írd:
+Az app telefonra telepítéséhez (PWA) HTTPS kell. Mivel a Tailscale címeden már vannak projektek, az appot **külön HTTPS porton** tedd ki, hogy a meglévő (443-as) beállításod megmaradjon. Az alábbi példában a 8090 helyére a telepítő által kiírt portot írd, ha az eltér:
 
 ```bash
-sudo tailscale serve --bg --https=8443 http://127.0.0.1:8080
+sudo tailscale serve --bg --https=8443 http://127.0.0.1:8090
 ```
 
 Ezután az app a `https://<pi-neve>.<tailnet>.ts.net:8443` címen érhető el, csak a saját Tailscale hálózatodból.
 
-> ⚠️ **Ne** futtasd a sima `sudo tailscale serve --bg 8080` parancsot: az a 443-as HTTPS portot állítja be, és lecserélheti a másik projekted beállítását. Ha a 8443 is foglalt (`tailscale serve status`), válassz másikat, pl. `--https=10000`.
+> ⚠️ **Ne** futtasd a sima `sudo tailscale serve --bg 8090` parancsot: az a 443-as HTTPS portot állítja be, és lecserélheti a másik projekted beállítását. Ha a 8443 is foglalt (`tailscale serve status`), válassz másikat, pl. `--https=10000`.
 
 A beállítás visszavonása (csak ezt az egy portot törli):
 

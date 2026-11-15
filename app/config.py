@@ -32,7 +32,7 @@ DATA_DIR.mkdir(parents=True, exist_ok=True)
 DB_PATH = DATA_DIR / "akciok.db"
 STATIC_DIR = BASE_DIR / "static"
 
-PORT = int(os.environ.get("PORT", "8080"))
+PORT = int(os.environ.get("PORT", "8090"))
 HOST = os.environ.get("HOST", "0.0.0.0")
 
 # Ha "0", a háttérfrissítés nem indul el (tesztekhez hasznos).
