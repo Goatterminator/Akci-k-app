@@ -11,30 +11,17 @@ from typing import Any
 
 from bs4 import BeautifulSoup
 
+from ..categories import STORE_APPS
 from .base import Deal, ScrapeContext, Scraper, get_with_retry, parse_price
 
 KFC_URL = "https://kfc.hu/kuponok"
 BK_API = "https://burgerking.hu/wp-json/wp/v2/coupons"
 BK_PAGE = "https://burgerking.hu/kuponjaink/"
 
-# App-megnyitó adatok. A kfc.hu és a BK app-linkje (Branch) a láncok saját appjához van
-# regisztrálva (Android App Links / iOS Universal Links), így telefonon az appot nyitják meg.
-# Konkrét kuponra mutató nyilvános linket egyik lánc sem ad: az app a kuponoknál nyílik meg.
-KFC_APP = {
-    "name": "KFC",
-    "link": KFC_URL,
-    "android_package": "com.kfc_hu",
-    "play": "https://play.google.com/store/apps/details?id=com.kfc_hu",
-    "appstore": "https://apps.apple.com/hu/app/kfc-magyarorsz%C3%A1g/id1358657152",
-}
-BK_APP_LINK_DEFAULT = "https://burgerkinghu.app.link/yQBrwHwcqNb"  # a burgerking.hu saját kuponlinkje
-BK_APP = {
-    "name": "Burger King",
-    "link": BK_APP_LINK_DEFAULT,
-    "android_package": "com.expremio.burgerking",
-    "play": "https://play.google.com/store/apps/details?id=com.expremio.burgerking",
-    "appstore": "https://apps.apple.com/hu/app/burger-king/id1427220042",
-}
+# App-megnyitó adatok (lásd categories.STORE_APPS)
+KFC_APP = STORE_APPS["KFC"]
+BK_APP = STORE_APPS["Burger King"]
+BK_APP_LINK_DEFAULT = BK_APP["link"]
 
 
 def _clean(text: str | None) -> str:

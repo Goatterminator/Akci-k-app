@@ -357,3 +357,17 @@ def test_ai_prefilter():
     assert [i["id"] for i in got] == ["a"]
     assert refresh.ai_prefilter({}, items) == []  # túl általános: nem hívjuk az AI-t
     assert [i["id"] for i in refresh.ai_prefilter({"keywords": ["kivi"]}, items)] == ["b"]
+
+
+def test_old_coupons_get_app_link_without_rescrape(client):
+    """A régebbi verzióval eltárolt (app-link nélküli) kuponok is kapnak app-linket."""
+    from app import db
+    from app.scrapers.base import Deal
+
+    refresh.store_deals("kfc", [Deal(id="kfc:KFC:x", source="kfc", store="KFC", title="Régi kupon",
+                                     category="gyorsetterem", kind="coupon", price=990)], 390)
+    with db.get_conn() as conn:
+        assert conn.execute("SELECT extra FROM items WHERE id='kfc:KFC:x'").fetchone()[0] is None
+    register(client)
+    item = client.get("/api/coupons").json()["stores"]["KFC"][0]
+    assert item["extra"]["app"]["link"] == "https://kfc.hu/kuponok"

@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from typing import Any, Iterator
 
 from . import config
+from .categories import STORE_APPS
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS items (
@@ -255,6 +256,10 @@ def row_to_dict(row: sqlite3.Row) -> dict[str, Any]:
             d["extra"] = json.loads(d["extra"]) if d["extra"] else {}
         except (TypeError, ValueError):
             d["extra"] = {}
+        # KFC/BK kuponoknál az app-link akkor is legyen meg, ha a tétel még a régebbi
+        # verzióval került be (ne kelljen kivárni a következő kuponfrissítést)
+        if d.get("kind") == "coupon" and d.get("store") in STORE_APPS and not d["extra"].get("app"):
+            d["extra"]["app"] = STORE_APPS[d["store"]]
     d.pop("title_norm", None)
     d.pop("rn", None)
     return d

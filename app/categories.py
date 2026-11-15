@@ -22,6 +22,26 @@ CATEGORIES: list[dict[str, str]] = [
 CATEGORY_KEYS = {c["key"] for c in CATEGORIES}
 
 # Bolt metaadatok a felülethez (szín = márkaszín jellegű kiemelés).
+# A láncok appjának megnyitásához (kuponok). A kfc.hu és a BK app-linkje (Branch) a láncok
+# saját appjához van regisztrálva (Android App Links / iOS Universal Links), így telefonon
+# az appot nyitják meg. Konkrét kuponra mutató nyilvános linket egyik lánc sem ad.
+STORE_APPS: dict[str, dict[str, str]] = {
+    "KFC": {
+        "name": "KFC",
+        "link": "https://kfc.hu/kuponok",
+        "android_package": "com.kfc_hu",
+        "play": "https://play.google.com/store/apps/details?id=com.kfc_hu",
+        "appstore": "https://apps.apple.com/hu/app/kfc-magyarorsz%C3%A1g/id1358657152",
+    },
+    "Burger King": {
+        "name": "Burger King",
+        "link": "https://burgerkinghu.app.link/yQBrwHwcqNb",  # a burgerking.hu saját kuponlinkje
+        "android_package": "com.expremio.burgerking",
+        "play": "https://play.google.com/store/apps/details?id=com.expremio.burgerking",
+        "appstore": "https://apps.apple.com/hu/app/burger-king/id1427220042",
+    },
+}
+
 STORES: dict[str, dict[str, str]] = {
     "Lidl": {"color": "#0050aa"},
     "Spar": {"color": "#e2001a"},
