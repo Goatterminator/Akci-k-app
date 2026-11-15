@@ -1,0 +1,284 @@
+[
+ {
+  "id": 4607,
+  "date": "2026-04-22T09:25:55",
+  "date_gmt": "2026-04-22T07:25:55",
+  "guid": {
+   "rendered": "https://burgerking.hu/?post_type=coupons-cpt&#038;p=4607"
+  },
+  "modified": "2026-04-22T09:25:55",
+  "modified_gmt": "2026-04-22T07:25:55",
+  "slug": "k0442-chicken-fans",
+  "status": "publish",
+  "type": "coupons-cpt",
+  "link": "https://burgerking.hu/?coupons-cpt=k0442-chicken-fans",
+  "title": {
+   "rendered": "K0442 Chicken fans"
+  },
+  "excerpt": {
+   "rendered": "<p>2 db Crispy Chicken + Kis burgonya + Közepes üdítő</p>\n",
+   "protected": false
+  },
+  "author": 17,
+  "featured_media": 4586,
+  "template": "",
+  "meta": {
+   "_acf_changed": false
+  },
+  "class_list": [
+   "post-4607",
+   "coupons-cpt",
+   "type-coupons-cpt",
+   "status-publish",
+   "has-post-thumbnail",
+   "hentry"
+  ],
+  "acf": [],
+  "yoast_head_json": {
+   "title": "K0442 Chicken fans - BURGER KING® Hungary",
+   "robots": {
+    "index": "noindex",
+    "follow": "follow"
+   },
+   "og_locale": "hu_HU",
+   "og_type": "article",
+   "og_title": "K0442 Chicken fans - BURGER KING® Hungary",
+   "og_description": "2 db Crispy Chicken + Kis burgonya + Közepes üdítő",
+   "og_url": "https://burgerking.hu/?coupons-cpt=k0442-chicken-fans",
+   "og_site_name": "BURGER KING® Hungary",
+   "article_publisher": "https://www.facebook.com/BurgerKingHU",
+   "og_image": [
+    {
+     "width": 580,
+     "height": 580,
+     "url": "https://burgerking.hu/app/uploads/2026/04/ChickenFans_580x580px_K0442_2CrispyChickenkiskr_kozudi_20260330-.jpg",
+     "type": "image/jpeg"
+    }
+   ],
+   "twitter_card": "summary_large_image",
+   "schema": {
+    "@context": "https://schema.org",
+    "@graph": [
+     {
+      "@type": "WebPage",
+      "@id": "https://burgerking.hu/?coupons-cpt=k0442-chicken-fans",
+      "url": "https://burgerking.hu/?coupons-cpt=k0442-chicken-fans",
+      "name": "K0442 Chicken fans - BURGER KING® Hungary",
+      "isPartOf": {
+       "@id": "https://burgerking.hu/#website"
+      },
+      "primaryImageOfPage": {
+       "@id": "https://burgerking.hu/?coupons-cpt=k0442-chicken-fans#primaryimage"
+      },
+      "image": {
+       "@id": "https://burgerking.hu/?coupons-cpt=k0442-chicken-fans#primaryimage"
+      },
+      "thumbnailUrl": "https://burgerking.hu/app/uploads/2026/04/ChickenFans_580x580px_K0442_2CrispyChickenkiskr_kozudi_20260330-.jpg",
+      "datePublished": "2026-04-22T07:25:55+00:00",
+      "breadcrumb": {
+       "@id": "https://burgerking.hu/?coupons-cpt=k0442-chicken-fans#breadcrumb"
+      },
+      "inLanguage": "hu",
+      "potentialAction": [
+       {
+        "@type": "ReadAction",
+        "target": [
+         "https://burgerking.hu/?coupons-cpt=k0442-chicken-fans"
+        ]
+       }
+      ]
+     },
+     {
+      "@type": "ImageObject",
+      "inLanguage": "hu",
+      "@id": "https://burgerking.hu/?coupons-cpt=k0442-chicken-fans#primaryimage",
+      "url": "https://burgerking.hu/app/uploads/2026/04/ChickenFans_580x580px_K0442_2CrispyChickenkiskr_kozudi_20260330-.jpg",
+      "contentUrl": "https://burgerking.hu/app/uploads/2026/04/ChickenFans_580x580px_K0442_2CrispyChickenkiskr_kozudi_20260330-.jpg",
+      "width": 580,
+      "height": 580
+     },
+     {
+      "@type": "BreadcrumbList",
+      "@id": "https://burgerking.hu/?coupons-cpt=k0442-chicken-fans#breadcrumb",
+      "itemListElement": [
+       {
+        "@type": "ListItem",
+        "position": 1,
+        "name": "Kezdőlap",
+        "item": "https://burgerking.hu/"
+       },
+       {
+        "@type": "ListItem",
+        "position": 2,
+        "name": "K0442 Chicken fans"
+       }
+      ]
+     },
+     {
+      "@type": "WebSite",
+      "@id": "https://burgerking.hu/#website",
+      "url": "https://burgerking.hu/",
+      "name": "BURGER KING® Hungary",
+      "description": "A Burger King a világ egyik legnagyobb gyorsétteremlánca, amely 2016-ban 15 243 éttermet üzemeltetett az Egyesült Államokban és további 99 országban együttvéve. Első magyarországi éttermét 1991. augusztus 8-án nyitotta az Oktogonon",
+      "potentialAction": [
+       {
+        "@type": "SearchAction",
+        "target": {
+         "@type": "EntryPoint",
+         "urlTemplate": "https://burgerking.hu/?s={search_term_string}"
+        },
+        "query-input": {
+         "@type": "PropertyValueSpecification",
+         "valueRequired": true,
+         "valueName": "search_term_string"
+        }
+       }
+      ],
+      "inLanguage": "hu"
+     }
+    ]
+   }
+  }
+ },
+ {
+  "id": 4605,
+  "date": "2026-04-22T09:22:33",
+  "date_gmt": "2026-04-22T07:22:33",
+  "guid": {
+   "rendered": "https://burgerking.hu/?post_type=coupons-cpt&#038;p=4605"
+  },
+  "modified": "2026-04-22T09:22:33",
+  "modified_gmt": "2026-04-22T07:22:33",
+  "slug": "k0553-bk-hours",
+  "status": "publish",
+  "type": "coupons-cpt",
+  "link": "https://burgerking.hu/?coupons-cpt=k0553-bk-hours",
+  "title": {
+   "rendered": "K0553 BK Hours"
+  },
+  "excerpt": {
+   "rendered": "<p>4 db King Nuggets + 5 db Chili Cheese Nuggets + Választható tálkás szósz</p>\n",
+   "protected": false
+  },
+  "author": 17,
+  "featured_media": 4584,
+  "template": "",
+  "meta": {
+   "_acf_changed": false
+  },
+  "class_list": [
+   "post-4605",
+   "coupons-cpt",
+   "type-coupons-cpt",
+   "status-publish",
+   "has-post-thumbnail",
+   "hentry"
+  ],
+  "acf": [],
+  "yoast_head_json": {
+   "title": "K0553 BK Hours - BURGER KING® Hungary",
+   "robots": {
+    "index": "noindex",
+    "follow": "follow"
+   },
+   "og_locale": "hu_HU",
+   "og_type": "article",
+   "og_title": "K0553 BK Hours - BURGER KING® Hungary",
+   "og_description": "4 db King Nuggets + 5 db Chili Cheese Nuggets + Választható tálkás szósz",
+   "og_url": "https://burgerking.hu/?coupons-cpt=k0553-bk-hours",
+   "og_site_name": "BURGER KING® Hungary",
+   "article_publisher": "https://www.facebook.com/BurgerKingHU",
+   "og_image": [
+    {
+     "width": 580,
+     "height": 580,
+     "url": "https://burgerking.hu/app/uploads/2026/04/BK-Hours_580x580_K0553_5chiliCheeseNuggets4kingNuggets_20260217-_.jpg",
+     "type": "image/jpeg"
+    }
+   ],
+   "twitter_card": "summary_large_image",
+   "schema": {
+    "@context": "https://schema.org",
+    "@graph": [
+     {
+      "@type": "WebPage",
+      "@id": "https://burgerking.hu/?coupons-cpt=k0553-bk-hours",
+      "url": "https://burgerking.hu/?coupons-cpt=k0553-bk-hours",
+      "name": "K0553 BK Hours - BURGER KING® Hungary",
+      "isPartOf": {
+       "@id": "https://burgerking.hu/#website"
+      },
+      "primaryImageOfPage": {
+       "@id": "https://burgerking.hu/?coupons-cpt=k0553-bk-hours#primaryimage"
+      },
+      "image": {
+       "@id": "https://burgerking.hu/?coupons-cpt=k0553-bk-hours#primaryimage"
+      },
+      "thumbnailUrl": "https://burgerking.hu/app/uploads/2026/04/BK-Hours_580x580_K0553_5chiliCheeseNuggets4kingNuggets_20260217-_.jpg",
+      "datePublished": "2026-04-22T07:22:33+00:00",
+      "breadcrumb": {
+       "@id": "https://burgerking.hu/?coupons-cpt=k0553-bk-hours#breadcrumb"
+      },
+      "inLanguage": "hu",
+      "potentialAction": [
+       {
+        "@type": "ReadAction",
+        "target": [
+         "https://burgerking.hu/?coupons-cpt=k0553-bk-hours"
+        ]
+       }
+      ]
+     },
+     {
+      "@type": "ImageObject",
+      "inLanguage": "hu",
+      "@id": "https://burgerking.hu/?coupons-cpt=k0553-bk-hours#primaryimage",
+      "url": "https://burgerking.hu/app/uploads/2026/04/BK-Hours_580x580_K0553_5chiliCheeseNuggets4kingNuggets_20260217-_.jpg",
+      "contentUrl": "https://burgerking.hu/app/uploads/2026/04/BK-Hours_580x580_K0553_5chiliCheeseNuggets4kingNuggets_20260217-_.jpg",
+      "width": 580,
+      "height": 580
+     },
+     {
+      "@type": "BreadcrumbList",
+      "@id": "https://burgerking.hu/?coupons-cpt=k0553-bk-hours#breadcrumb",
+      "itemListElement": [
+       {
+        "@type": "ListItem",
+        "position": 1,
+        "name": "Kezdőlap",
+        "item": "https://burgerking.hu/"
+       },
+       {
+        "@type": "ListItem",
+        "position": 2,
+        "name": "K0553 BK Hours"
+       }
+      ]
+     },
+     {
+      "@type": "WebSite",
+      "@id": "https://burgerking.hu/#website",
+      "url": "https://burgerking.hu/",
+      "name": "BURGER KING® Hungary",
+      "description": "A Burger King a világ egyik legnagyobb gyorsétteremlánca, amely 2016-ban 15 243 éttermet üzemeltetett az Egyesült Államokban és további 99 országban együttvéve. Első magyarországi éttermét 1991. augusztus 8-án nyitotta az Oktogonon",
+      "potentialAction": [
+       {
+        "@type": "SearchAction",
+        "target": {
+         "@type": "EntryPoint",
+         "urlTemplate": "https://burgerking.hu/?s={search_term_string}"
+        },
+        "query-input": {
+         "@type": "PropertyValueSpecification",
+         "valueRequired": true,
+         "valueName": "search_term_string"
+        }
+       }
+      ],
+      "inLanguage": "hu"
+     }
+    ]
+   }
+  }
+ }
+]

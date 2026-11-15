@@ -110,7 +110,7 @@ INTERPRET_SCHEMA = {
             "items": {"type": "STRING"},
             "description": "Magyar keresőszavak, ahogy termékcímekben szerepelnek (szinonimák, márkák, ragozatlan alak).",
         },
-        "category": {"type": "STRING", "enum": _CATEGORY_KEYS + [""]},
+        "category": {"type": "STRING", "enum": _CATEGORY_KEYS + ["any"]},
         "max_price": {"type": "NUMBER", "nullable": True},
         "min_price": {"type": "NUMBER", "nullable": True},
         "sort": {"type": "STRING", "enum": ["discount", "price", "unit_price"]},
@@ -147,12 +147,14 @@ async def interpret_query(settings: dict[str, str], query: str) -> dict[str, Any
         "termékcímeiben megtalálható a keresett termék (pl. 'mosópor' -> mosópor, mosógél, "
         "mosókapszula, Ariel, Persil). Ha ár szerepel a kérésben, töltsd ki a max_price/min_price "
         "mezőt forintban (euró esetén váltsd át ~390 Ft/€ árfolyamon). Válassz kategóriát, ha "
-        "egyértelmű, különben üres string. Kategóriák: " + ", ".join(_CATEGORY_KEYS) + ". "
+        "egyértelmű, különben 'any'. Kategóriák: " + ", ".join(_CATEGORY_KEYS) + ". "
         "A sort mező: 'unit_price' ha a legolcsóbb egységár érdekli, 'price' ha a legolcsóbb, "
         "különben 'discount'."
     )
     result = await generate(settings, [{"text": prompt}], INTERPRET_SCHEMA)
     result["keywords"] = [k for k in (result.get("keywords") or []) if isinstance(k, str) and k.strip()][:15]
+    if result.get("category") not in _CATEGORY_KEYS:
+        result["category"] = ""
     db.cache_set(cache_key, result)
     return result
 

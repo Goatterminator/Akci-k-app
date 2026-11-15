@@ -1,0 +1,586 @@
+{
+ "numFound": 6,
+ "items": [
+  {
+   "resultClass": "product",
+   "type": "product",
+   "code": "11214533",
+   "label": "",
+   "url": "",
+   "gridbox": {
+    "data": {
+     "canonicalUrl": "/p/arany-kivi/p11214533",
+     "category": "F+V",
+     "fullTitle": "Arany kivi",
+     "image": "https://www.lidl.hu/assets/gcpfac4ea701594456caeed6efefd6eab1e.png",
+     "itemId": 11214533,
+     "keyfacts": {
+      "wonCategoryPrimary": "A szükség világai/Élelmiszer és élelmiszer-közeli élelmiszerek/Gyümölcs és zöldség/Gyümölcs"
+     },
+     "lidlPlus": [],
+     "price": {
+      "currencyCode": "HUF",
+      "currencyCodeSecond": "",
+      "currencySymbol": "Ft",
+      "currencySymbolSecond": "",
+      "discount": {
+       "absoluteDiscount": 200.0,
+       "deletedPrice": 299.0,
+       "discountHasStar": false,
+       "fromRecommendedPrice": false,
+       "hideBargainHint": false,
+       "bargainHintEnabled": false,
+       "bargainHintText": "Mega ajánlat",
+       "percentageDiscount": 66,
+       "showDiscount": true,
+       "showFrom": false,
+       "showPercentage": true,
+       "showUpTo": false
+      },
+      "displayedCurrency": "Ft",
+      "hasStar": false,
+      "hasVat": false,
+      "oldPrice": 299.0,
+      "packaging": {
+       "text": "/db"
+      },
+      "price": 99.0,
+      "priceTheme": "white_red",
+      "specialTaxes": [],
+      "variantsHaveDifferentPrices": false
+     },
+     "productId": 11214533,
+     "stockAvailability": {
+      "availabilityIndicator": 0,
+      "badgeInfo": {
+       "badges": [
+        {
+         "text": "Ajánlat érvényes: 11.14. - 11.15.",
+         "type": "IN_STORE_PAST_DATE_RANGE"
+        }
+       ]
+      },
+      "badgeInfoV2": [
+       {
+        "badges": [
+         {
+          "text": "Ajánlat érvényes: 11.14. - 11.15.",
+          "type": "IN_STORE_PAST_DATE_RANGE"
+         }
+        ],
+        "validFrom": 1794610800,
+        "validUntil": 1794783599
+       }
+      ],
+      "onlineAvailable": false,
+      "minOrderableQuantity": 1,
+      "backInStockNotification": false,
+      "backInStockNotificationSoldOut": false
+     },
+     "title": "Arany kivi"
+    }
+   },
+   "tracking": {
+    "position": 1,
+    "xPayload": {
+     "searchTrackingMasterId": "Product.11214533",
+     "searchTrackingTitle": "Arany+kivi",
+     "searchTrackingPageSize": 60,
+     "searchTrackingPage": 1,
+     "searchTrackingEvent": "click",
+     "list": "search",
+     "searchTrackingId": "Product.11214533",
+     "searchTrackingOrigPos": 1,
+     "searchTrackingPos": 1,
+     "searchTrackingOrigPageSize": 60,
+     "searchTrackingChannel": "HU",
+     "category": "F+V"
+    }
+   }
+  },
+  {
+   "resultClass": "product",
+   "type": "product",
+   "code": "11214322",
+   "label": "",
+   "url": "",
+   "gridbox": {
+    "data": {
+     "canonicalUrl": "/p/bio-mini-sargarepa/p11214322",
+     "category": "Food",
+     "fullTitle": "Bio mini sárgarépa",
+     "image": "https://www.lidl.hu/assets/gcp0a070ede998d4fa89aece659c3a728cd.png",
+     "itemId": 11214322,
+     "keyfacts": {
+      "wonCategoryPrimary": "A szükség világai/Élelmiszer és élelmiszer-közeli élelmiszerek/Gyümölcs és zöldség/Zöldség"
+     },
+     "lidlPlus": [],
+     "price": {
+      "currencyCode": "HUF",
+      "currencyCodeSecond": "",
+      "currencySymbol": "Ft",
+      "currencySymbolSecond": "",
+      "discount": {
+       "absoluteDiscount": 300.0,
+       "deletedPrice": 499.0,
+       "discountHasStar": false,
+       "fromRecommendedPrice": false,
+       "hideBargainHint": false,
+       "bargainHintEnabled": false,
+       "bargainHintText": "Mega ajánlat",
+       "percentageDiscount": 60,
+       "showDiscount": true,
+       "showFrom": false,
+       "showPercentage": true,
+       "showUpTo": false
+      },
+      "displayedCurrency": "Ft",
+      "hasStar": false,
+      "hasVat": false,
+      "oldPrice": 499.0,
+      "packaging": {
+       "text": "200 g / csomag"
+      },
+      "price": 199.0,
+      "priceTheme": "white_red",
+      "specialTaxes": [],
+      "variantsHaveDifferentPrices": false
+     },
+     "productId": 11214322,
+     "stockAvailability": {
+      "availabilityIndicator": 0,
+      "badgeInfo": {
+       "badges": [
+        {
+         "text": "Ajánlat érvényes: 11.12. - 11.15.",
+         "type": "IN_STORE_PAST_DATE_RANGE"
+        }
+       ]
+      },
+      "badgeInfoV2": [
+       {
+        "badges": [
+         {
+          "text": "Ajánlat érvényes: 11.12. - 11.15.",
+          "type": "IN_STORE_PAST_DATE_RANGE"
+         }
+        ],
+        "validFrom": 1794438000,
+        "validUntil": 1794783599
+       }
+      ],
+      "onlineAvailable": false,
+      "minOrderableQuantity": 1,
+      "backInStockNotification": false,
+      "backInStockNotificationSoldOut": false
+     },
+     "title": "Bio mini sárgarépa"
+    }
+   },
+   "tracking": {
+    "position": 2,
+    "xPayload": {
+     "searchTrackingMasterId": "Product.11214322",
+     "searchTrackingTitle": "Bio+mini+s%C3%A1rgar%C3%A9pa",
+     "searchTrackingPageSize": 60,
+     "searchTrackingPage": 1,
+     "searchTrackingEvent": "click",
+     "list": "search",
+     "searchTrackingId": "Product.11214322",
+     "searchTrackingOrigPos": 1,
+     "searchTrackingPos": 2,
+     "searchTrackingOrigPageSize": 60,
+     "searchTrackingChannel": "HU",
+     "category": "Food"
+    }
+   }
+  },
+  {
+   "resultClass": "product",
+   "type": "product",
+   "code": "11151055",
+   "label": "",
+   "url": "",
+   "gridbox": {
+    "data": {
+     "canonicalUrl": "/p/kigyouborka/p11151055",
+     "category": "Food",
+     "fullTitle": "Kígyóuborka",
+     "image": "https://www.lidl.hu/assets/gcpfbd2fa4132c64416beb632e0acb2063c.png",
+     "itemId": 11151055,
+     "keyfacts": {
+      "wonCategoryPrimary": "A szükség világai/Élelmiszer és élelmiszer-közeli élelmiszerek/Gyümölcs és zöldség/Zöldség"
+     },
+     "lidlPlus": [],
+     "price": {
+      "currencyCode": "HUF",
+      "currencyCodeSecond": "",
+      "currencySymbol": "Ft",
+      "currencySymbolSecond": "",
+      "discount": {
+       "absoluteDiscount": 220.0,
+       "deletedPrice": 399.0,
+       "discountHasStar": false,
+       "fromRecommendedPrice": false,
+       "hideBargainHint": false,
+       "bargainHintEnabled": false,
+       "bargainHintText": "Mega ajánlat",
+       "percentageDiscount": 55,
+       "showDiscount": true,
+       "showFrom": false,
+       "showPercentage": true,
+       "showUpTo": false
+      },
+      "displayedCurrency": "Ft",
+      "hasStar": false,
+      "hasVat": false,
+      "oldPrice": 399.0,
+      "packaging": {
+       "text": "/db"
+      },
+      "price": 179.0,
+      "priceTheme": "white_red",
+      "specialTaxes": [],
+      "variantsHaveDifferentPrices": false
+     },
+     "productId": 11151055,
+     "stockAvailability": {
+      "availabilityIndicator": 0,
+      "badgeInfo": {
+       "badges": [
+        {
+         "text": "Ajánlat érvényes: 11.16. - 11.18.",
+         "type": "IN_STORE_FROM_FUTURE_DATE_RANGE"
+        }
+       ]
+      },
+      "badgeInfoV2": [
+       {
+        "badges": [
+         {
+          "text": "Ajánlat érvényes: 11.16. - 11.18.",
+          "type": "IN_STORE_FROM_FUTURE_DATE_RANGE"
+         }
+        ],
+        "validFrom": 1794783600,
+        "validUntil": 1795042799
+       }
+      ],
+      "onlineAvailable": false,
+      "minOrderableQuantity": 1,
+      "backInStockNotification": false,
+      "backInStockNotificationSoldOut": false
+     },
+     "title": "Kígyóuborka"
+    }
+   },
+   "tracking": {
+    "position": 3,
+    "xPayload": {
+     "searchTrackingMasterId": "Product.11151055",
+     "searchTrackingTitle": "K%C3%ADgy%C3%B3uborka",
+     "searchTrackingPageSize": 60,
+     "searchTrackingPage": 1,
+     "searchTrackingEvent": "click",
+     "list": "search",
+     "searchTrackingId": "Product.11151055",
+     "searchTrackingOrigPos": 1,
+     "searchTrackingPos": 3,
+     "searchTrackingOrigPageSize": 60,
+     "searchTrackingChannel": "HU",
+     "category": "Food"
+    }
+   }
+  },
+  {
+   "resultClass": "product",
+   "type": "product",
+   "code": "11219033",
+   "label": "",
+   "url": "",
+   "gridbox": {
+    "data": {
+     "brand": {
+      "name": "PICK",
+      "url": "/q/search?q=pick",
+      "showBrand": true
+     },
+     "canonicalUrl": "/p/pick-rakoczi-szalami/p11219033",
+     "category": "Food",
+     "fullTitle": "PICK Rákóczi szalámi",
+     "image": "https://www.lidl.hu/assets/gcpb9699502bbf34540a75d08a49078bc2b.png",
+     "itemId": 11219033,
+     "keyfacts": {
+      "wonCategoryPrimary": "A szükség világai/Élelmiszer és élelmiszer-közeli élelmiszerek/Hús és baromfi/Kolbász és felvágott"
+     },
+     "lidlPlus": [],
+     "price": {
+      "basePrice": {
+       "prefix": false,
+       "text": "1 kg = 5 248 Ft"
+      },
+      "currencyCode": "HUF",
+      "currencyCodeSecond": "",
+      "currencySymbol": "Ft",
+      "currencySymbolSecond": "",
+      "discount": {
+       "absoluteDiscount": 1336.0,
+       "deletedPrice": 3435.0,
+       "discountHasStar": false,
+       "fromRecommendedPrice": false,
+       "hideBargainHint": false,
+       "bargainHintEnabled": false,
+       "bargainHintText": "Mega ajánlat",
+       "percentageDiscount": 38,
+       "showDiscount": true,
+       "showFrom": false,
+       "showPercentage": true,
+       "showUpTo": false
+      },
+      "displayedCurrency": "Ft",
+      "hasStar": false,
+      "hasVat": false,
+      "oldPrice": 3435.0,
+      "packaging": {
+       "text": "400 g"
+      },
+      "price": 2099.0,
+      "priceTheme": "white_red",
+      "specialTaxes": [],
+      "variantsHaveDifferentPrices": false
+     },
+     "productId": 11219033,
+     "stockAvailability": {
+      "availabilityIndicator": 0,
+      "badgeInfo": {
+       "badges": [
+        {
+         "text": "Ajánlat érvényes: 11.12. - 11.15.",
+         "type": "IN_STORE_PAST_DATE_RANGE"
+        }
+       ]
+      },
+      "badgeInfoV2": [
+       {
+        "badges": [
+         {
+          "text": "Ajánlat érvényes: 11.12. - 11.15.",
+          "type": "IN_STORE_PAST_DATE_RANGE"
+         }
+        ],
+        "validFrom": 1794438000,
+        "validUntil": 1794783599
+       },
+       {
+        "badges": [
+         {
+          "text": "Ajánlat érvényes: 02.11. - 02.14.",
+          "type": "IN_STORE_FROM_FUTURE_DATE_RANGE"
+         }
+        ],
+        "validFrom": 1802300400,
+        "validUntil": 1802645999
+       }
+      ],
+      "onlineAvailable": false,
+      "minOrderableQuantity": 0,
+      "backInStockNotification": false,
+      "backInStockNotificationSoldOut": false
+     },
+     "title": "Rákóczi szalámi"
+    }
+   },
+   "tracking": {
+    "position": 4,
+    "xPayload": {
+     "searchTrackingMasterId": "Product.11219033",
+     "searchTrackingTitle": "R%C3%A1k%C3%B3czi+szal%C3%A1mi",
+     "searchTrackingPageSize": 60,
+     "searchTrackingPage": 1,
+     "searchTrackingEvent": "click",
+     "list": "search",
+     "searchTrackingId": "Product.11219033",
+     "searchTrackingOrigPos": 1,
+     "searchTrackingPos": 4,
+     "searchTrackingOrigPageSize": 60,
+     "searchTrackingChannel": "HU",
+     "category": "Food"
+    }
+   }
+  },
+  {
+   "resultClass": "product",
+   "type": "product",
+   "code": "11102235",
+   "label": "",
+   "url": "",
+   "gridbox": {
+    "data": {
+     "brand": {
+      "name": "PARKSIDE PERFORMANCE",
+      "url": "/q/search?q=parkside+performance",
+      "showBrand": true
+     },
+     "canonicalUrl": "/p/parkside-performance-premium-akkus-furo-es-vesokalapacs/p11102235",
+     "category": "NonFood",
+     "fullTitle": "PARKSIDE PERFORMANCE Prémium akkus fúró- és vésőkalapács",
+     "image": "https://www.lidl.hu/assets/gcpa1f879ef75014c74a28112fc33536530.png",
+     "itemId": 11102235,
+     "keyfacts": {
+      "wonCategoryPrimary": "A szükség világai/Barkácsáruház és kert/Akkumulátoros szerszámok"
+     },
+     "lidlPlus": [],
+     "price": {
+      "currencyCode": "HUF",
+      "currencyCodeSecond": "",
+      "currencySymbol": "Ft",
+      "currencySymbolSecond": "",
+      "displayedCurrency": "Ft",
+      "hasStar": false,
+      "hasVat": false,
+      "packaging": {
+       "text": "/db"
+      },
+      "price": 19999.0,
+      "priceTheme": "white_red",
+      "specialTaxes": [],
+      "variantsHaveDifferentPrices": false
+     },
+     "productId": 11102235,
+     "stockAvailability": {
+      "availabilityIndicator": 0,
+      "badgeInfo": {
+       "badges": [
+        {
+         "text": "Ajánlat érvényes: 11.09. - 11.15.",
+         "type": "IN_STORE_PAST_DATE_RANGE"
+        }
+       ]
+      },
+      "badgeInfoV2": [
+       {
+        "badges": [
+         {
+          "text": "Ajánlat érvényes: 11.09. - 11.15.",
+          "type": "IN_STORE_PAST_DATE_RANGE"
+         }
+        ],
+        "validFrom": 1794178800,
+        "validUntil": 1794783599
+       }
+      ],
+      "onlineAvailable": false,
+      "minOrderableQuantity": 0,
+      "backInStockNotification": false,
+      "backInStockNotificationSoldOut": false
+     },
+     "title": "Prémium akkus fúró- és vésőkalapács"
+    }
+   },
+   "tracking": {
+    "position": 201,
+    "xPayload": {
+     "searchTrackingMasterId": "Product.11102235",
+     "searchTrackingTitle": "Pr%C3%A9mium+akkus+f%C3%BAr%C3%B3-+%C3%A9s+v%C3%A9s%C5%91kalap%C3%A1cs",
+     "searchTrackingPageSize": 60,
+     "searchTrackingPage": 4,
+     "searchTrackingEvent": "click",
+     "list": "search",
+     "searchTrackingId": "Product.11102235",
+     "searchTrackingOrigPos": 1,
+     "searchTrackingPos": 201,
+     "searchTrackingOrigPageSize": 60,
+     "searchTrackingChannel": "HU",
+     "category": "NonFood"
+    }
+   }
+  },
+  {
+   "resultClass": "product",
+   "type": "product",
+   "code": "11102286",
+   "label": "",
+   "url": "",
+   "gridbox": {
+    "data": {
+     "brand": {
+      "name": "PARKSIDE",
+      "url": "/q/search?q=parkside",
+      "showBrand": true
+     },
+     "canonicalUrl": "/p/parkside-munkavedelmi-cipo-bakancs/p11102286",
+     "category": "NonFood",
+     "fullTitle": "PARKSIDE Munkavédelmi cipő / bakancs",
+     "image": "https://www.lidl.hu/assets/gcpf326ea96426e461da4b510872789760d.png",
+     "itemId": 11102286,
+     "keyfacts": {
+      "wonCategoryPrimary": "A szükség világai/Barkácsáruház és kert/Munkaruha"
+     },
+     "lidlPlus": [],
+     "price": {
+      "currencyCode": "HUF",
+      "currencyCodeSecond": "",
+      "currencySymbol": "Ft",
+      "currencySymbolSecond": "",
+      "displayedCurrency": "Ft",
+      "hasStar": false,
+      "hasVat": false,
+      "packaging": {
+       "text": "/pár"
+      },
+      "price": 9999.0,
+      "priceTheme": "white_red",
+      "specialTaxes": [],
+      "variantsHaveDifferentPrices": false
+     },
+     "productId": 11102286,
+     "stockAvailability": {
+      "availabilityIndicator": 0,
+      "badgeInfo": {
+       "badges": [
+        {
+         "text": "Ajánlat érvényes: 11.09. - 11.15.",
+         "type": "IN_STORE_PAST_DATE_RANGE"
+        }
+       ]
+      },
+      "badgeInfoV2": [
+       {
+        "badges": [
+         {
+          "text": "Ajánlat érvényes: 11.09. - 11.15.",
+          "type": "IN_STORE_PAST_DATE_RANGE"
+         }
+        ],
+        "validFrom": 1794178800,
+        "validUntil": 1794783599
+       }
+      ],
+      "onlineAvailable": false,
+      "minOrderableQuantity": 0,
+      "backInStockNotification": false,
+      "backInStockNotificationSoldOut": false
+     },
+     "title": "Munkavédelmi cipő / bakancs"
+    }
+   },
+   "tracking": {
+    "position": 202,
+    "xPayload": {
+     "searchTrackingMasterId": "Product.11102286",
+     "searchTrackingTitle": "Munkav%C3%A9delmi+cip%C5%91+%2F+bakancs",
+     "searchTrackingPageSize": 60,
+     "searchTrackingPage": 4,
+     "searchTrackingEvent": "click",
+     "list": "search",
+     "searchTrackingId": "Product.11102286",
+     "searchTrackingOrigPos": 1,
+     "searchTrackingPos": 202,
+     "searchTrackingOrigPageSize": 60,
+     "searchTrackingChannel": "HU",
+     "category": "NonFood"
+    }
+   }
+  }
+ ]
+}

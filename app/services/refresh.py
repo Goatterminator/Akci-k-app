@@ -99,9 +99,16 @@ def store_deals(source: str, deals: list[Deal], eur_huf: float) -> list[str]:
                 or (prev["price"] is not None and d.price is not None and d.price < prev["price"])
             ):
                 fresh_deals.append(d.id)
+        # Ami most nem jött vissza a forrástól, az már nem aktív (időbélyeg helyett a látott
+        # azonosítók alapján, így két gyors egymás utáni futásnál sem marad bent elavult tétel)
+        conn.execute("CREATE TEMP TABLE IF NOT EXISTS seen_ids (id TEXT PRIMARY KEY)")
+        conn.execute("DELETE FROM seen_ids")
+        conn.executemany("INSERT OR IGNORE INTO seen_ids(id) VALUES (?)", [(d.id,) for d in deals])
         conn.execute(
-            "UPDATE items SET active=0 WHERE source=? AND last_seen < ? AND active=1", (source, now)
+            "UPDATE items SET active=0 WHERE source=? AND active=1 AND id NOT IN (SELECT id FROM seen_ids)",
+            (source,),
         )
+        conn.execute("DELETE FROM seen_ids")
     return fresh_deals
 
 
@@ -141,7 +148,9 @@ def check_watches(item_ids: list[str]) -> list[dict[str, Any]]:
         return []
     new_alerts: list[dict[str, Any]] = []
     with db.get_conn() as conn:
-        watches = [dict(r) for r in conn.execute("SELECT * FROM watches")]
+        watches = [dict(r) for r in conn.execute(
+            "SELECT w.*, u.ntfy_topic FROM watches w JOIN users u ON u.id=w.user_id"
+        )]
         if not watches:
             return []
         for chunk_start in range(0, len(item_ids), 500):
@@ -241,6 +250,7 @@ def maintenance() -> None:
             "AND id NOT IN (SELECT item_id FROM favorites)",
             (cutoff_items,),
         )
+        conn.execute("DELETE FROM favorites WHERE item_id NOT IN (SELECT id FROM items)")
         conn.execute(
             "DELETE FROM price_history WHERE item_id NOT IN (SELECT id FROM items)"
         )

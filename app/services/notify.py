@@ -43,19 +43,25 @@ def _price(item: dict[str, Any]) -> str:
 
 
 async def send_alerts(alerts: list[dict[str, Any]], settings: dict[str, str]) -> None:
-    if not alerts or not (settings.get("ntfy_topic") or "").strip():
-        return
-    if len(alerts) <= 3:
-        for a in alerts:
-            it = a["item"]
-            await send(
-                settings,
-                f"🔔 {a['watch']['query']}: {it['store']}",
-                f"{it['title']} – {_price(it)}",
-                click=it.get("url"),
-            )
-    else:
-        lines = [f"• {a['item']['store']}: {a['item']['title'][:60]} – {_price(a['item'])}" for a in alerts[:8]]
-        if len(alerts) > 8:
-            lines.append(f"…és még {len(alerts) - 8}")
-        await send(settings, f"🔔 {len(alerts)} új találat a figyelőidre", "\n".join(lines))
+    """Riasztások küldése felhasználónként, mindenki a saját ntfy témájára."""
+    by_topic: dict[str, list[dict[str, Any]]] = {}
+    for a in alerts:
+        topic = (a["watch"].get("ntfy_topic") or "").strip()
+        if topic:
+            by_topic.setdefault(topic, []).append(a)
+    for topic, items in by_topic.items():
+        user_settings = {**settings, "ntfy_topic": topic}
+        if len(items) <= 3:
+            for a in items:
+                it = a["item"]
+                await send(
+                    user_settings,
+                    f"🔔 {a['watch']['query']}: {it['store']}",
+                    f"{it['title']} – {_price(it)}",
+                    click=it.get("url"),
+                )
+        else:
+            lines = [f"• {a['item']['store']}: {a['item']['title'][:60]} – {_price(a['item'])}" for a in items[:8]]
+            if len(items) > 8:
+                lines.append(f"…és még {len(items) - 8}")
+            await send(user_settings, f"🔔 {len(items)} új találat a figyelőidre", "\n".join(lines))

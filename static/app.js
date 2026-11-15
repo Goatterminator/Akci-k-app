@@ -65,7 +65,14 @@ async function api(path, opts = {}) {
   const res = await fetch(path, init);
   let data = null;
   try { data = await res.json(); } catch { /* üres válasz */ }
-  if (!res.ok) throw new Error((data && data.detail) || `Hiba (${res.status})`);
+  if (res.status === 401 && !path.startsWith("/api/auth/")) {
+    showAuth();
+    throw new Error("Bejelentkezés szükséges");
+  }
+  if (!res.ok) {
+    const d = data && data.detail;
+    throw new Error(Array.isArray(d) ? "Hibás adatok – ellenőrizd a mezőket." : d || `Hiba (${res.status})`);
+  }
   return data;
 }
 
@@ -96,6 +103,7 @@ const ICONS = {
   sun: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>',
   moon: '<svg viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>',
   close: '<svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>',
+  user: '<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>',
 };
 
 const ROUTES = [
@@ -106,10 +114,12 @@ const ROUTES = [
   { path: "lista", label: "Lista", title: "Bevásárlólista", icon: "list", nav: "both", render: renderShopping },
   { path: "mentett", label: "Mentett", title: "Mentett akciók", icon: "star", nav: "side", render: renderFavorites },
   { path: "figyelo", label: "Figyelő", title: "Figyelő és értesítések", icon: "bell", nav: "side", render: renderWatches },
-  { path: "beallitasok", label: "Beállítások", title: "Beállítások", icon: "gear", nav: "side", render: renderSettings },
+  { path: "profil", label: "Profil", title: "Profil", icon: "user", nav: "side", render: renderProfile },
+  { path: "beallitasok", label: "Admin beállítások", title: "Admin beállítások", icon: "gear", nav: "side", admin: true, render: renderSettings },
 ];
 
-let META = { categories: [], stores: [], ai_enabled: false, unseen_alerts: 0, refresh: {} };
+let META = { user: null, categories: [], stores: [], ai_enabled: false, unseen_alerts: 0, refresh: {} };
+const isAdmin = () => !!(META.user && META.user.is_admin);
 const STORE_COLORS = () => Object.fromEntries(META.stores.map((s) => [s.name, s.color]));
 
 // ------------------------------------------------------------------ téma
@@ -134,7 +144,7 @@ function buildNav() {
     `<a class="nav-item ${r.path === cur ? "active" : ""}" href="#/${r.path}">${ICONS[r.icon]}<span>${r.label}</span></a>`;
   $("#bottom-nav").innerHTML = ROUTES.filter((r) => r.nav === "both").map(item).join("");
   const main = ROUTES.filter((r) => r.nav === "both").map(item).join("");
-  const side = ROUTES.filter((r) => r.nav === "side").map(item).join("");
+  const side = ROUTES.filter((r) => r.nav === "side" && (!r.admin || isAdmin())).map(item).join("");
   $("#side-nav").innerHTML = main + '<div class="sep"></div>' + side;
 }
 
@@ -144,7 +154,8 @@ function currentPath() {
 
 async function router() {
   const path = currentPath();
-  const route = ROUTES.find((r) => r.path === path) || ROUTES[0];
+  let route = ROUTES.find((r) => r.path === path) || ROUTES[0];
+  if (route.admin && !isAdmin()) route = ROUTES.find((r) => r.path === "profil");
   document.title = route.path ? `${route.label} · Akciók` : "Akciók";
   $("#page-title").textContent = route.title;
   buildNav();
@@ -162,7 +173,12 @@ async function loadMeta() {
   try {
     META = await api("/api/meta");
   } catch { return; }
+  const gear = $("#gear-link");
+  gear.href = isAdmin() ? "#/beallitasok" : "#/profil";
+  gear.title = isAdmin() ? "Admin beállítások" : "Profil";
+  gear.setAttribute("aria-label", gear.title);
   $("#alert-dot").hidden = !META.unseen_alerts;
+  $("#side-status").textContent = META.last_refresh ? `Adatok frissítve ${relTime(META.last_refresh)}` : "Még nincs adat";
   const r = META.refresh || {};
   const banner = $("#refresh-banner");
   if (r.running) {
@@ -173,6 +189,7 @@ async function loadMeta() {
 
 let wasRunning = false;
 setInterval(async () => {
+  if (document.body.classList.contains("auth-mode")) return;
   await loadMeta();
   const running = !!(META.refresh && META.refresh.running);
   if (wasRunning && !running && ["", "jatekok", "kuponok"].includes(currentPath())) router();
@@ -325,7 +342,7 @@ async function openDetail(id) {
         ${item.url ? `<a class="btn primary" href="${esc(item.url)}" target="_blank" rel="noopener">Megnyitás ↗</a>` : ""}
         <button class="btn" id="d-fav">${item.favorite ? "★ Mentve" : "☆ Mentés"}</button>
         <button class="btn" id="d-watch">🔔 Figyelő</button>
-        ${item.source === "manual" ? `<button class="btn" id="d-del">🗑 Törlés</button>` : ""}
+        ${item.source === "manual" && (isAdmin() || (item.extra || {}).added_by === META.user?.id) ? `<button class="btn" id="d-del">🗑 Törlés</button>` : ""}
       </div>
       <div class="muted small">Frissítve: ${relTime(item.last_seen)} · Forrás: ${esc(item.source)}</div>
     </div>`;
@@ -431,7 +448,7 @@ async function renderDeals(root) {
       const noData = META.stores.every((s) => !s.count);
       results.innerHTML = noData
         ? emptyState("⏳", "Még nincs adat. Az első frissítés pár perc, utána itt lesznek a legdurvább akciók.",
-          `<button class="btn primary" id="first-refresh">Frissítés most</button>`)
+          isAdmin() ? `<button class="btn primary" id="first-refresh">Frissítés most</button>` : "")
         : emptyState("🔍", "Nincs a szűrésnek megfelelő akció.");
       const fr = $("#first-refresh");
       if (fr) fr.onclick = async () => { await api("/api/refresh", { method: "POST" }); toast("Frissítés elindult"); loadMeta(); };
@@ -505,7 +522,7 @@ async function renderAi(root) {
       </div>
       <label class="toggle"><input type="checkbox" id="ai-deals" ${last?.only_deals ? "checked" : ""}> Csak akciós termékek</label>
       <div class="chips wrap" id="ai-ex">${AI_EXAMPLES.map((e) => `<button class="chip" type="button">${esc(e)}</button>`).join("")}</div>
-      ${META.ai_enabled ? "" : `<div class="summary small">ℹ️ Még nincs Gemini API kulcs megadva, így egyszerű kulcsszavas keresés fut. <a href="#/beallitasok">Kulcs megadása a Beállításokban →</a></div>`}
+      ${META.ai_enabled ? "" : `<div class="summary small">ℹ️ Még nincs Gemini API kulcs megadva, így egyszerű kulcsszavas keresés fut. ${isAdmin() ? `<a href="#/beallitasok">Kulcs megadása az Admin beállításokban →</a>` : "Az admin tudja beállítani."}</div>`}
     </div>
     <div id="ai-results" class="section"></div>`;
 
@@ -722,7 +739,7 @@ async function renderWatches(root) {
   const data = await api("/api/watches");
   root.innerHTML = `
     <form class="card-box" id="w-form" style="display:grid;gap:12px">
-      <div><b>Új figyelő</b> <span class="muted small">Szólunk, ha új akció jelenik meg erre (az appban${" "}és ntfy push értesítésben, ha beállítottad).</span></div>
+      <div><b>Új figyelő</b> <span class="muted small">Szólunk, ha új akció jelenik meg erre: itt az appban, és push értesítésben is, ha a <a href="#/profil">Profilban</a> beállítottad az ntfy-t.</span></div>
       <div class="form-grid">
         <label class="field" style="grid-column:1/-1">Kulcsszó<input class="input" name="query" required minlength="2" placeholder="pl. Nutella, Parkside fúró, Pampers 4" value="${esc(params.get("q") || "")}"></label>
         <label class="field">Max. ár (Ft)<input class="input" name="max_price" type="number" min="0" inputmode="numeric"></label>
@@ -788,12 +805,15 @@ async function renderSettings(root) {
     </section>
 
     <section class="card-box section" style="display:grid;gap:12px">
-      <div><b>🔔 Push értesítés (ntfy)</b><div class="muted small">Telepítsd az <a href="https://ntfy.sh" target="_blank" rel="noopener">ntfy</a> appot, iratkozz fel egy egyedi, nehezen kitalálható témára (pl. <code>akciok-${Math.random().toString(36).slice(2, 8)}</code>), és írd be ide ugyanazt.</div></div>
-      <div class="form-grid">
-        <label class="field">Téma (topic)<input class="input" id="s-topic" value="${esc(s.ntfy_topic)}" placeholder="akciok-valami-titkos"></label>
-        <label class="field">Szerver<input class="input" id="s-ntfy" value="${esc(s.ntfy_server)}"></label>
-      </div>
-      <div class="row"><button class="btn primary" id="s-save-ntfy">Mentés</button><button class="btn" id="s-test-ntfy">Teszt értesítés</button></div>
+      <div><b>👥 Felhasználók</b><div class="muted small">Te vagy az admin (az első felhasználó). A többiek a saját mentéseiket és figyelőiket látják, a beállításokat nem.</div></div>
+      <label class="toggle"><input type="checkbox" id="s-reg" ${s.allow_registration === "1" ? "checked" : ""}> Új felhasználók regisztrálhatnak</label>
+      <div class="list" id="s-users"><div class="muted small">Betöltés…</div></div>
+    </section>
+
+    <section class="card-box section" style="display:grid;gap:12px">
+      <div><b>🔔 ntfy szerver</b><div class="muted small">Ezen keresztül mennek a push értesítések. A témát (topic) mindenki a saját Profiljában állítja be.</div></div>
+      <label class="field">Szerver<input class="input" id="s-ntfy" value="${esc(s.ntfy_server)}"></label>
+      <div class="row"><button class="btn primary" id="s-save-ntfy">Mentés</button></div>
     </section>
 
     <section class="card-box section" style="display:grid;gap:12px">
@@ -846,12 +866,23 @@ async function renderSettings(root) {
     const r = await api("/api/ai/test", { method: "POST" });
     $("#s-ai-msg").innerHTML = `<span style="color:${r.ok ? "var(--good)" : "var(--bad)"}">${esc(r.message)}</span>`;
   };
-  $("#s-save-ntfy").onclick = () => saveSettings({ ntfy_topic: $("#s-topic").value.trim(), ntfy_server: $("#s-ntfy").value.trim() || "https://ntfy.sh" });
-  $("#s-test-ntfy").onclick = async () => {
-    await saveSettings({ ntfy_topic: $("#s-topic").value.trim(), ntfy_server: $("#s-ntfy").value.trim() || "https://ntfy.sh" }, "Mentve");
-    const r = await api("/api/notify/test", { method: "POST" });
-    toast(r.ok ? "Teszt értesítés elküldve 📱" : "Nem sikerült – ellenőrizd a témát");
+  $("#s-save-ntfy").onclick = () => saveSettings({ ntfy_server: $("#s-ntfy").value.trim() || "https://ntfy.sh" });
+  $("#s-reg").onchange = (e) => saveSettings({ allow_registration: e.target.checked ? "1" : "0" },
+    e.target.checked ? "Regisztráció engedélyezve" : "Regisztráció letiltva");
+  const loadUsers = async () => {
+    const { users } = await api("/api/admin/users");
+    $("#s-users").innerHTML = users.map((u) => `
+      <div class="list-row"><div class="grow"><div class="t">${esc(u.username)} ${u.is_admin ? '<span class="tag hot">admin</span>' : ""}</div>
+        <div class="s">Regisztrált: ${fmtDate(u.created)}</div></div>
+        ${u.is_admin ? "" : `<button class="btn small ghost" data-deluser="${u.id}">Törlés</button>`}</div>`).join("");
+    $$("[data-deluser]").forEach((b) => (b.onclick = async () => {
+      if (!confirm("Biztosan törlöd ezt a felhasználót? A mentései és figyelői is törlődnek.")) return;
+      await api(`/api/admin/users/${b.dataset.deluser}`, { method: "DELETE" });
+      toast("Felhasználó törölve");
+      loadUsers();
+    }));
   };
+  loadUsers();
   $("#s-save-gen").onclick = () => saveSettings({ refresh_hours: $("#s-hours").value, eur_huf: $("#s-eur").value });
   $("#s-save-emag").onclick = () => saveSettings({ emag_urls: $("#s-emag").value });
   $$("[data-src]").forEach((cb) => (cb.onchange = () => {
@@ -867,20 +898,115 @@ async function renderSettings(root) {
   $$("[data-run]").forEach((b) => (b.onclick = () => startRefresh(b.dataset.run)));
 }
 
+// ------------------------------------------------------------------ Profil
+async function renderProfile(root) {
+  const u = META.user;
+  root.innerHTML = `
+    <section class="card-box row">
+      <div class="grow"><div style="font-size:18px;font-weight:700">${esc(u.username)} ${u.is_admin ? '<span class="tag hot">admin</span>' : ""}</div>
+        <div class="muted small">Tag ${fmtDate(u.created)} óta</div></div>
+      <button class="btn" id="p-logout">Kijelentkezés</button>
+    </section>
+    ${u.is_admin ? `<a class="card-box section row" href="#/beallitasok" style="text-decoration:none">
+      <span style="font-size:22px">⚙️</span><div class="grow"><b>Admin beállítások</b><div class="muted small">Gemini API kulcs, források, frissítés, felhasználók</div></div><span>→</span></a>` : ""}
+    <section class="card-box section" style="display:grid;gap:12px">
+      <div><b>🔔 Push értesítés a telefonodra (ntfy)</b><div class="muted small">1. Telepítsd az ingyenes <a href="https://ntfy.sh" target="_blank" rel="noopener">ntfy</a> appot. 2. Iratkozz fel egy egyedi, nehezen kitalálható témára (pl. <code>akciok-${Math.random().toString(36).slice(2, 8)}</code>). 3. Írd be ide ugyanazt. Így szól a telefonod, ha egy figyelődre új akció jön.</div></div>
+      <label class="field">Téma (topic)<input class="input" id="p-topic" value="${esc(u.ntfy_topic)}" placeholder="akciok-valami-titkos" autocomplete="off"></label>
+      <div class="row"><button class="btn primary" id="p-save-topic">Mentés</button><button class="btn" id="p-test">Teszt értesítés</button></div>
+    </section>
+    <form class="card-box section" style="display:grid;gap:12px" id="p-pw">
+      <b>🔑 Jelszó módosítása</b>
+      <div class="form-grid">
+        <label class="field">Jelenlegi jelszó<input class="input" type="password" name="current_password" autocomplete="current-password" required></label>
+        <label class="field">Új jelszó (min. 6 karakter)<input class="input" type="password" name="new_password" autocomplete="new-password" minlength="6" required></label>
+      </div>
+      <div class="row"><button class="btn primary" type="submit">Jelszó módosítása</button></div>
+    </form>`;
+  const saveTopic = async () => {
+    const r = await api("/api/me", { method: "PUT", body: { ntfy_topic: $("#p-topic").value.trim() } });
+    META.user = r.user;
+  };
+  $("#p-save-topic").onclick = async () => { try { await saveTopic(); toast("Mentve ✔"); } catch (e) { toast(e.message); } };
+  $("#p-test").onclick = async () => {
+    try {
+      await saveTopic();
+      const r = await api("/api/me/notify-test", { method: "POST" });
+      toast(r.ok ? "Teszt értesítés elküldve 📱" : "Nem sikerült – adj meg egy témát");
+    } catch (e) { toast(e.message); }
+  };
+  $("#p-pw").onsubmit = async (e) => {
+    e.preventDefault();
+    try {
+      await api("/api/me", { method: "PUT", body: Object.fromEntries(new FormData(e.target)) });
+      e.target.reset();
+      toast("Jelszó módosítva ✔");
+    } catch (err) { toast(err.message); }
+  };
+  $("#p-logout").onclick = async () => {
+    await api("/api/auth/logout", { method: "POST" });
+    META.user = null;
+    showAuth();
+  };
+}
+
+// ------------------------------------------------------------------ bejelentkezés / regisztráció
+async function showAuth() {
+  if (document.body.classList.contains("auth-mode") && $("#auth-form")) return;
+  document.body.classList.add("auth-mode");
+  if (sheet.open) sheet.close();
+  let state = { needs_setup: false, allow_registration: true };
+  try { state = await api("/api/auth/state"); } catch { /* szerver nem elérhető */ }
+  let mode = state.needs_setup ? "setup" : "login";
+  const render = () => {
+    const setup = mode === "setup", reg = mode === "register";
+    view.innerHTML = `
+      <div class="auth-wrap">
+        <form class="card-box auth-card" id="auth-form">
+          <img src="/icon.svg" alt="" width="52" height="52">
+          <h2>${setup ? "Üdv az Akciók appban! 👋" : reg ? "Regisztráció" : "Bejelentkezés"}</h2>
+          <div class="muted small">${setup
+            ? "Hozd létre az első fiókot. <b>Ez lesz az admin fiók</b>: csak ez éri el a beállításokat (Gemini API kulcs, források, felhasználók)."
+            : reg ? "Hozz létre egy fiókot. A mentéseid és figyelőid a sajátjaid lesznek." : "Lépj be a fiókodba."}</div>
+          <label class="field">Felhasználónév<input class="input" name="username" autocomplete="username" required minlength="2" maxlength="40" autofocus></label>
+          <label class="field">Jelszó${setup || reg ? " (min. 6 karakter)" : ""}<input class="input" type="password" name="password" autocomplete="${setup || reg ? "new-password" : "current-password"}" required minlength="6"></label>
+          <button class="btn primary" type="submit">${setup ? "Admin fiók létrehozása" : reg ? "Regisztráció" : "Belépés"}</button>
+          <div class="small auth-err" id="auth-err"></div>
+          ${!setup && state.allow_registration ? `<button class="btn ghost small" type="button" id="auth-switch">${reg ? "Van már fiókom – belépés" : "Nincs még fiókod? Regisztráció"}</button>` : ""}
+        </form>
+      </div>`;
+    const sw = $("#auth-switch");
+    if (sw) sw.onclick = () => { mode = reg ? "login" : "register"; render(); };
+    $("#auth-form").onsubmit = async (e) => {
+      e.preventDefault();
+      const body = Object.fromEntries(new FormData(e.target));
+      const btn = $("button[type=submit]", e.target);
+      btn.disabled = true;
+      try {
+        await api(mode === "login" ? "/api/auth/login" : "/api/auth/register", { method: "POST", body });
+        document.body.classList.remove("auth-mode");
+        await start();
+      } catch (err) {
+        $("#auth-err").textContent = err.message;
+        btn.disabled = false;
+      }
+    };
+  };
+  render();
+}
+
 // ------------------------------------------------------------------ indulás
 applyTheme();
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applyTheme);
 window.addEventListener("hashchange", router);
-(async () => {
+async function start() {
+  const state = await api("/api/auth/state").catch(() => null);
+  if (!state || !state.user) return showAuth();
+  document.body.classList.remove("auth-mode");
   await loadMeta();
   wasRunning = !!(META.refresh && META.refresh.running);
-  const src = await api("/api/sources").catch(() => null);
-  if (src) {
-    const last = src.sources.map((s) => s.last_ok).filter(Boolean).sort().pop();
-    $("#side-status").textContent = last ? `Frissítve ${relTime(last)}` : "Még nincs adat";
-  }
   router();
-})();
+}
+start();
 
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("/sw.js").catch(() => {});

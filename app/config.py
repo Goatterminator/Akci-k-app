@@ -50,8 +50,7 @@ DEFAULT_SETTINGS: dict[str, str] = {
     "refresh_hours": "6",
     "eur_huf": "390",
     "ntfy_server": "https://ntfy.sh",
-    "ntfy_topic": "",
+    "allow_registration": "1",
     "disabled_sources": "",
-    "min_discount_feed": "10",
     "emag_urls": "",
 }

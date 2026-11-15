@@ -46,6 +46,7 @@ def list_deals(
     max_price: float | None = None,
     sort: str = "discount",
     favorites_only: bool = False,
+    user_id: int | None = None,
     limit: int = 60,
     offset: int = 0,
 ) -> dict[str, Any]:
@@ -80,7 +81,8 @@ def list_deals(
         clauses.append("price_huf <= ?")
         params.append(max_price)
     if favorites_only:
-        clauses.append("id IN (SELECT item_id FROM favorites)")
+        clauses.append("id IN (SELECT item_id FROM favorites WHERE user_id=?)")
+        params.append(user_id or 0)
     sql_where = " AND ".join(clauses)
     if sort == "mix":
         # "Legdurvább (vegyes)": körönként boltonként max. 3 tétel, a körön belül kedvezmény szerint,
@@ -95,7 +97,7 @@ def list_deals(
     with db.get_conn() as conn:
         total = conn.execute(f"SELECT COUNT(*) FROM items WHERE {sql_where}", params).fetchone()[0]
         rows = conn.execute(query, params + [limit, offset]).fetchall()
-        favs = {r[0] for r in conn.execute("SELECT item_id FROM favorites")}
+        favs = {r[0] for r in conn.execute("SELECT item_id FROM favorites WHERE user_id=?", (user_id or 0,))}
     items = [db.row_to_dict(r) for r in rows]
     for it in items:
         it["favorite"] = it["id"] in favs
@@ -168,7 +170,7 @@ def keyword_candidates(
     return [db.row_to_dict(s[3]) for s in scored[:limit]]
 
 
-def get_item(item_id: str) -> dict[str, Any] | None:
+def get_item(item_id: str, user_id: int | None = None) -> dict[str, Any] | None:
     with db.get_conn() as conn:
         row = conn.execute("SELECT * FROM items WHERE id=?", (item_id,)).fetchone()
         if not row:
@@ -184,7 +186,7 @@ def get_item(item_id: str) -> dict[str, Any] | None:
                 (item["product_key"], item_id),
             )]
         item["favorite"] = bool(conn.execute(
-            "SELECT 1 FROM favorites WHERE item_id=?", (item_id,)
+            "SELECT 1 FROM favorites WHERE item_id=? AND user_id=?", (item_id, user_id or 0)
         ).fetchone())
     item["history"] = history
     item["other_stores"] = others

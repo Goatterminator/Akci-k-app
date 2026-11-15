@@ -343,3 +343,10 @@ label.field { display: flex; flex-direction: column; gap: 6px; font-size: 13px; 
 .skeleton { background: linear-gradient(90deg, var(--surface-2), var(--border), var(--surface-2)); background-size: 200% 100%; animation: sk 1.2s infinite; border-radius: var(--radius); }
 @keyframes sk { to { background-position: -200% 0; } }
 .sk-card { height: 290px; }
+
+/* ------------------------------------------------------------ bejelentkezés */
+body.auth-mode .sidebar, body.auth-mode .bottom-nav, body.auth-mode .topbar, body.auth-mode .refresh-banner { display: none !important; }
+.auth-wrap { min-height: 88vh; display: grid; place-items: center; }
+.auth-card { width: 100%; max-width: 400px; display: grid; gap: 14px; padding: 28px 24px; }
+.auth-card h2 { margin: 0; font-size: 22px; letter-spacing: -.02em; }
+.auth-err { color: var(--bad); min-height: 1em; }

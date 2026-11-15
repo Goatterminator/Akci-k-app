@@ -68,14 +68,32 @@ CREATE TABLE IF NOT EXISTS settings (
     value TEXT
 );
 
+CREATE TABLE IF NOT EXISTS users (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    username    TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    pw_hash     TEXT NOT NULL,
+    is_admin    INTEGER NOT NULL DEFAULT 0,
+    ntfy_topic  TEXT,
+    created     TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS sessions (
+    token     TEXT PRIMARY KEY,
+    user_id   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created   TEXT NOT NULL,
+    last_seen TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS favorites (
-    item_id  TEXT PRIMARY KEY,
+    user_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    item_id  TEXT NOT NULL,
     added    TEXT NOT NULL,
-    snapshot TEXT
+    PRIMARY KEY (user_id, item_id)
 );
 
 CREATE TABLE IF NOT EXISTS watches (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     query        TEXT NOT NULL,
     max_price    REAL,
     min_discount REAL,
@@ -85,7 +103,7 @@ CREATE TABLE IF NOT EXISTS watches (
 
 CREATE TABLE IF NOT EXISTS alerts (
     id       INTEGER PRIMARY KEY AUTOINCREMENT,
-    watch_id INTEGER NOT NULL,
+    watch_id INTEGER NOT NULL REFERENCES watches(id) ON DELETE CASCADE,
     item_id  TEXT NOT NULL,
     created  TEXT NOT NULL,
     seen     INTEGER NOT NULL DEFAULT 0,
