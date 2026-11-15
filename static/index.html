@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="hu">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Akciók</title>
+  <meta name="description" content="Budapesti akciók egy helyen – Lidl, Spar, Aldi, Tesco, KFC, Burger King, Steam, Epic és még sok más.">
+  <meta name="theme-color" content="#f6f6f4" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#121214" media="(prefers-color-scheme: dark)">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar" aria-label="Fő navigáció">
+      <a class="brand" href="#/">
+        <img src="/icon.svg" alt="" width="32" height="32">
+        <span>Akciók</span>
+      </a>
+      <nav class="side-nav" id="side-nav"></nav>
+      <div class="side-foot" id="side-status"></div>
+    </aside>
+
+    <div class="main">
+      <header class="topbar">
+        <a class="brand brand-mobile" href="#/">
+          <img src="/icon.svg" alt="" width="28" height="28">
+          <span>Akciók</span>
+        </a>
+        <h1 class="page-title" id="page-title">Top akciók</h1>
+        <div class="top-actions">
+          <button class="icon-btn" id="theme-btn" title="Téma váltása" aria-label="Téma váltása"></button>
+          <a class="icon-btn" href="#/figyelo" title="Figyelő és értesítések" aria-label="Figyelő">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+            <span class="dot" id="alert-dot" hidden></span>
+          </a>
+          <a class="icon-btn" href="#/beallitasok" title="Beállítások" aria-label="Beállítások">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          </a>
+        </div>
+      </header>
+
+      <div class="refresh-banner" id="refresh-banner" hidden></div>
+      <main id="view" tabindex="-1"></main>
+    </div>
+
+    <nav class="bottom-nav" id="bottom-nav" aria-label="Fő navigáció"></nav>
+  </div>
+
+  <dialog class="sheet" id="sheet">
+    <div class="sheet-inner" id="sheet-body"></div>
+  </dialog>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script type="module" src="/app.js"></script>
+</body>
+</html>
