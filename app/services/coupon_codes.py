@@ -24,9 +24,25 @@ SLUGS_TTL = 24 * 3600
 SHOP_TTL = 6 * 3600
 
 # Kiemelt boltok a felületen (a Picodi slugjai)
-POPULAR = ["mcdonalds", "kfc", "burgerking", "wolt", "foodora", "bolt", "kifli", "emag", "allegro",
-           "alza", "mediamarkt", "decathlon", "notino", "temu", "aliexpress", "booking"]
-DEFAULT_SHOPS = ["mcdonalds", "wolt", "foodora"]  # a Kuponok oldal alján alapból ezek látszanak
+POPULAR = ["alza", "mcdonalds", "kfc", "burgerking", "wolt", "foodora", "bolt", "kifli", "emag",
+           "allegro", "mediamarkt", "decathlon", "notino", "temu", "aliexpress", "booking"]
+DEFAULT_SHOPS = ["alza", "mcdonalds", "wolt", "foodora"]  # a Kuponok oldal alján alapból ezek látszanak
+
+# A bolt saját oldala ("Megnyitás a boltban" gomb). Telefonon, ha a bolt appja telepítve van
+# és a domainje app-linkként be van regisztrálva, az app nyílik meg.
+# Megjegyzés: az Alza a saját oldalát védi az automatikus lekérés ellen, ezért annak
+# akcióit nem olvassuk közvetlenül (ezt nem kerüljük meg) – az Alza kódjai/akciói a Picodiról jönnek.
+SHOP_SITES = {
+    "alza": "https://www.alza.hu/",
+    "emag": "https://www.emag.hu/",
+    "mcdonalds": "https://www.mcdonalds.com/hu/hu-hu.html",
+    "kfc": "https://kfc.hu/kuponok",
+    "burgerking": "https://burgerkinghu.app.link/yQBrwHwcqNb",
+    "wolt": "https://wolt.com/hu/hun/budapest",
+    "foodora": "https://www.foodora.hu/",
+    "decathlon": "https://www.decathlon.hu/",
+    "mediamarkt": "https://www.mediamarkt.hu/",
+}
 
 _PRETTY = {"emag": "eMAG", "kfc": "KFC", "mcdonalds": "McDonald's", "burgerking": "Burger King",
            "aliexpress": "AliExpress", "mediamarkt": "MediaMarkt", "aboutyou": "About You",
@@ -100,7 +116,7 @@ def parse_shop(page_html: str, slug: str) -> dict[str, Any]:
     today = datetime.now().strftime("%Y-%m-%d")
     offers = [o for o in offers if not o["expires"] or o["expires"] >= today]
     offers.sort(key=lambda o: (o["type"] != "code", o["expires"] or "9999"))
-    return {"slug": slug, "name": name, "logo": logo, "url": url, "offers": offers}
+    return {"slug": slug, "name": name, "logo": logo, "url": url, "site": SHOP_SITES.get(slug), "offers": offers}
 
 
 async def get_slugs(client: httpx.AsyncClient | None = None) -> list[str]:
@@ -149,6 +165,7 @@ async def get_shop(slug: str, client: httpx.AsyncClient | None = None) -> dict[s
     key = f"picodi_shop:{slug}"
     cached = db.cache_get(key, max_age_s=SHOP_TTL)
     if cached:
+        cached["site"] = SHOP_SITES.get(slug)  # régebbi gyorsítótár-bejegyzésekhez is
         return cached
     own = client is None
     client = client or make_client()

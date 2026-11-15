@@ -31,7 +31,7 @@ Egy helyen mutatja a legdurvább akciókat a nagy budapesti láncoknál, gyorsé
 | Epic Games Store | Epic | Heti ingyenes játékok |
 | Steam | Steam | Akciók EUR-ban, ≈ Ft átváltással |
 | emag.hu | eMAG | **Kísérleti**: az eMAG captchával védekezik, ezt az app nem kerüli meg. Otthoni IP-ről lehet, hogy átengedi. |
-| [Picodi](https://www.picodi.com/hu/) | ~280 webshop és lánc (Wolt, Foodora, McDonald's, eMAG…) | **Online kuponkódok** a Kuponok oldal alján, keresővel. A kódot a Picodin lehet felfedni (oda linkel); csak a nyilvános bolti oldalakat olvassa, boltonként max. 6 óránként |
+| [Picodi](https://www.picodi.com/hu/) | ~280 webshop és lánc (Alza, Wolt, Foodora, McDonald's, eMAG…) | **Online kuponkódok** a Kuponok oldal alján, keresővel. A kódot a Picodin lehet felfedni (oda linkel); csak a nyilvános bolti oldalakat olvassa, boltonként max. 6 óránként |
 | *kézi* | McDonald's és bármi más | A McDonald's ajánlatai csak a MyMcDonald's appban vannak, ezért kézzel vihetők fel |
 
 A Spar, Aldi, Tesco és társaik saját oldalai blokkolják az automatikus lekérést, ezért ezek adatai az Árfigyelőből jönnek.

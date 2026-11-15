@@ -645,6 +645,7 @@ function codeShopHtml(shop) {
         <div class="grow"><b>${esc(shop.name)}</b><div class="small muted">${offers.length ? `${offers.length} ajánlat` : "most nincs érvényes ajánlat"}</div></div>
         <a class="btn small" href="${esc(shop.url)}" target="_blank" rel="noopener">Összes ↗</a>
       </div>
+      ${shop.site ? `<a class="btn primary small code-site" href="${esc(shop.site)}" target="_blank" rel="noopener">🛒 Megnyitás: ${esc(shop.name)}</a>` : ""}
       ${offers.slice(0, 8).map((o) => `
         <a class="code-offer" href="${esc(o.url)}" target="_blank" rel="noopener">
           <span class="code-val ${o.type === "code" ? "is-code" : ""}">${esc(o.value || (o.type === "code" ? "KÓD" : "AKCIÓ"))}</span>

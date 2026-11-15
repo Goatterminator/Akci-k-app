@@ -16,6 +16,8 @@ def test_parse_shop_page(monkeypatch):
     monkeypatch.setattr(cc, "datetime", _FixedDatetime)
     shop = cc.parse_shop(load("picodi_emag.html"), "emag")
     assert shop["name"] == "eMAG" and shop["logo"].startswith("https://cdn.picodi.com/")
+    assert shop["site"] == "https://www.emag.hu/"
+    assert "alza" in cc.DEFAULT_SHOPS and cc.POPULAR[0] == "alza"
     assert len(shop["offers"]) == 4
     first = shop["offers"][0]
     assert first["type"] == "code" and first["value"] == "20%"
