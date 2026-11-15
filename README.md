@@ -14,7 +14,7 @@ Egy helyen mutatja a legdurvább akciókat a nagy budapesti láncoknál, gyorsé
 | 🍔 **Kuponok** | KFC és Burger King app-kuponok. A BK árait a Gemini olvassa ki a kuponképekről. A McDonald's (és bármi más) akciói kézzel is felvehetők. |
 | 🎮 **Játékok** | Az Epic Games ingyenes játékai (most és hamarosan, visszaszámlálóval), a Steam legjobban értékelt akciós és ingyen megtartható játékai. |
 | ⭐ **Mentett** | Kedvenc akciók, felhasználónként. |
-| 👥 **Több felhasználó** | **Az első regisztrált felhasználó az admin.** Csak ő látja a beállításokat (API kulcs, források, felhasználók). Utána a regisztráció zárva van, amíg az admin meg nem nyitja. |
+| 👥 **Több felhasználó** | **Az első regisztrált felhasználó az admin.** Csak ő látja a beállításokat (API kulcs, források, felhasználók). Bárki más regisztrálhat, de ők sima (nem admin) fiókot kapnak, napi AI-kerettel. |
 | 📱 **PWA** | Telefonon a kezdőképernyőre tehető, és appként működik. Van világos és sötét téma. |
 
 ## Adatforrások
@@ -107,7 +107,9 @@ sudo tailscale funnel --bg --https=10000 http://127.0.0.1:8090
 ```
 
 Biztonság nyilvános elérésnél:
-- az admin létrehozása után **a regisztráció alapból zárva van** (az Admin beállításokban nyitható meg, pl. családtagoknak, utána érdemes visszazárni);
+- a regisztrálók mindig **sima (nem admin) fiókot** kapnak; a regisztráció az Admin beállításokban kikapcsolható;
+- a sima felhasználók **naponta legfeljebb 30 AI keresést** indíthatnak (állítható), hogy ne merítsék ki a Gemini kulcsodat; az adminra nincs korlát;
+- legfeljebb **5 regisztráció** lehet az admin fiókon kívül (állítható);
 - 8 hibás belépés után az adott felhasználónév 15 percre zárolódik;
 - minden adat és a Gemini kulcs is csak bejelentkezés után érhető el.
 

@@ -51,6 +51,8 @@ DEFAULT_SETTINGS: dict[str, str] = {
     "eur_huf": "390",
     "ntfy_server": "https://ntfy.sh",
     "allow_registration": "1",
+    "ai_daily_limit": "30",   # sima felhasználónként naponta (0 = korlátlan); az adminra nem vonatkozik
+    "max_registrations": "5",  # ennyi sima (nem admin) fiók regisztrálhat (0 = korlátlan)
     "disabled_sources": "",
     "emag_urls": "",
 }

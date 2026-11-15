@@ -2,7 +2,8 @@
 
 * Az ELSŐ regisztrált felhasználó automatikusan admin: csak ő látja a
   Beállításokat (Gemini API kulcs, források, frissítés, felhasználók).
-* További felhasználók akkor regisztrálhatnak, ha az admin engedi.
+* Mindenki más sima (nem admin) fiókot kap regisztrációkor. Az admin a
+  regisztrációt kikapcsolhatja; alapból legfeljebb 5 sima fiók regisztrálhat.
 * Jelszó: PBKDF2-SHA256 sóval; munkamenet: véletlen token httpOnly sütiben.
 """
 from __future__ import annotations
@@ -96,19 +97,20 @@ def create_user(username: str, password: str) -> dict[str, Any]:
         first = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0] == 0
         if not first and db.get_setting("allow_registration", "1") != "1":
             raise HTTPException(403, "A regisztrációt az admin kikapcsolta.")
+        try:
+            max_reg = int(float(db.get_setting("max_registrations", "5") or 0))
+        except ValueError:
+            max_reg = 5
+        registered = conn.execute("SELECT COUNT(*) FROM users WHERE is_admin=0").fetchone()[0]
+        if not first and max_reg and registered >= max_reg:
+            raise HTTPException(403, f"Betelt a regisztráció (legfeljebb {max_reg} fiók). Kérd meg az admint.")
         if conn.execute("SELECT 1 FROM users WHERE username=?", (username,)).fetchone():
             raise HTTPException(409, "Ez a felhasználónév már foglalt.")
         cur = conn.execute(
             "INSERT INTO users(username, pw_hash, is_admin, created) VALUES (?,?,?,?)",
             (username, hash_password(password), 1 if first else 0, db.now_iso()),
         )
-        if first:
-            # Biztonságos alapállapot: az admin létrehozása után a regisztráció zárva van,
-            # az admin a Beállításokban nyithatja meg (pl. családtagoknak).
-            conn.execute(
-                "INSERT INTO settings(key, value) VALUES ('allow_registration', '0') "
-                "ON CONFLICT(key) DO UPDATE SET value='0'"
-            )
+
         row = conn.execute("SELECT * FROM users WHERE id=?", (cur.lastrowid,)).fetchone()
     return public_user(row)
 

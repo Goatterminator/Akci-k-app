@@ -806,7 +806,13 @@ async function renderSettings(root) {
 
     <section class="card-box section" style="display:grid;gap:12px">
       <div><b>👥 Felhasználók</b><div class="muted small">Te vagy az admin (az első felhasználó). A többiek a saját mentéseiket és figyelőiket látják, a beállításokat nem.</div></div>
-      <label class="toggle"><input type="checkbox" id="s-reg" ${s.allow_registration === "1" ? "checked" : ""}> Új felhasználók regisztrálhatnak</label>
+      <label class="toggle"><input type="checkbox" id="s-reg" ${s.allow_registration === "1" ? "checked" : ""}> Új felhasználók regisztrálhatnak (sima, nem admin fiókkal)</label>
+      <div class="form-grid">
+        <label class="field">AI keresés / fő / nap (0 = korlátlan)<input class="input" id="s-ailimit" type="number" min="0" value="${esc(s.ai_daily_limit)}"></label>
+        <label class="field">Max. regisztráció (adminon kívül, 0 = korlátlan)<input class="input" id="s-maxusers" type="number" min="0" value="${esc(s.max_registrations)}"></label>
+      </div>
+      <div class="muted small">A napi AI-keret rád (adminra) nem vonatkozik; azért van, hogy a regisztrált felhasználók ne merítsék ki az ingyenes Gemini kulcsodat.</div>
+      <div class="row"><button class="btn primary small" id="s-save-users">Korlátok mentése</button></div>
       <div class="list" id="s-users"><div class="muted small">Betöltés…</div></div>
     </section>
 
@@ -869,6 +875,7 @@ async function renderSettings(root) {
   $("#s-save-ntfy").onclick = () => saveSettings({ ntfy_server: $("#s-ntfy").value.trim() || "https://ntfy.sh" });
   $("#s-reg").onchange = (e) => saveSettings({ allow_registration: e.target.checked ? "1" : "0" },
     e.target.checked ? "Regisztráció engedélyezve" : "Regisztráció letiltva");
+  $("#s-save-users").onclick = () => saveSettings({ ai_daily_limit: $("#s-ailimit").value, max_registrations: $("#s-maxusers").value });
   const loadUsers = async () => {
     const { users } = await api("/api/admin/users");
     $("#s-users").innerHTML = users.map((u) => `

@@ -262,6 +262,30 @@ class AiSearchBody(BaseModel):
     only_deals: bool = False
 
 
+def _use_ai_quota(user: User, settings: dict[str, str]) -> None:
+    """Sima felhasználóknál napi AI-keret (hogy idegenek ne merítsék ki a Gemini kulcsot)."""
+    if user["is_admin"]:
+        return
+    try:
+        limit = int(float(settings.get("ai_daily_limit") or 0))
+    except ValueError:
+        limit = 30
+    if limit <= 0:
+        return
+    day = db.today()
+    with db.get_conn() as conn:
+        row = conn.execute("SELECT count FROM ai_usage WHERE user_id=? AND day=?", (user["id"], day)).fetchone()
+        if row and row["count"] >= limit:
+            raise HTTPException(429, f"Elérted a napi {limit} AI keresést. Holnap újra használhatod, "
+                                     "addig a sima keresés működik.")
+        conn.execute(
+            "INSERT INTO ai_usage(user_id, day, count) VALUES (?,?,1) "
+            "ON CONFLICT(user_id, day) DO UPDATE SET count=count+1",
+            (user["id"], day),
+        )
+        conn.execute("DELETE FROM ai_usage WHERE day < date('now', '-7 day')")
+
+
 def _mark_favorites(items: list[dict[str, Any]], user_id: int) -> None:
     with db.get_conn() as conn:
         favs = {r[0] for r in conn.execute("SELECT item_id FROM favorites WHERE user_id=?", (user_id,))}
@@ -286,6 +310,7 @@ async def ai_search(body: AiSearchBody, user: User = Depends(current_user)) -> d
                        "keresést végeztem.",
             "results": [{"item": it, "reason": None} for it in res],
         }
+    _use_ai_quota(user, settings)
     try:
         plan = await gemini.interpret_query(settings, body.query)
         keywords = plan.get("keywords") or normalize(body.query).split()
@@ -327,7 +352,7 @@ class ShoppingBody(BaseModel):
 
 
 @app.post("/api/shopping")
-async def shopping(body: ShoppingBody, _: User = Depends(current_user)) -> dict[str, Any]:
+async def shopping(body: ShoppingBody, user: User = Depends(current_user)) -> dict[str, Any]:
     lines = [line.strip() for line in body.lines if line.strip()][:60]
     if not lines:
         raise HTTPException(400, "Üres lista")
@@ -335,6 +360,11 @@ async def shopping(body: ShoppingBody, _: User = Depends(current_user)) -> dict[
     allowed = None
     ai_note = None
     if body.use_ai and gemini.has_key(settings):
+        try:
+            _use_ai_quota(user, settings)
+        except HTTPException as exc:
+            ai_note = str(exc.detail)
+    if body.use_ai and gemini.has_key(settings) and ai_note is None:
         cands = [await asyncio.to_thread(search.shopping_candidates, line, 25) for line in lines]
         try:
             allowed = await gemini.filter_shopping_candidates(settings, lines, cands)
@@ -535,7 +565,7 @@ async def refresh_now(source: str = "", _: User = Depends(require_admin)) -> dic
 # ------------------------------------------------------------------ admin: beállítások
 SETTING_KEYS = {
     "gemini_api_key", "gemini_model", "refresh_hours", "eur_huf", "ntfy_server",
-    "disabled_sources", "emag_urls", "allow_registration",
+    "disabled_sources", "emag_urls", "allow_registration", "ai_daily_limit", "max_registrations",
 }
 
 
@@ -568,6 +598,12 @@ def settings_put(values: dict[str, Any], admin: User = Depends(require_admin)) -
             clean["eur_huf"] = str(float(clean["eur_huf"]))
         except ValueError:
             clean.pop("eur_huf")
+    for int_key in ("ai_daily_limit", "max_registrations"):
+        if int_key in clean:
+            try:
+                clean[int_key] = str(max(0, int(float(clean[int_key]))))
+            except ValueError:
+                clean.pop(int_key)
     if "allow_registration" in clean:
         clean["allow_registration"] = "1" if str(clean["allow_registration"]) in ("1", "true", "True") else "0"
     db.set_settings(clean)

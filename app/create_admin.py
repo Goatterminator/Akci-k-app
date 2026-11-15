@@ -34,8 +34,8 @@ def main() -> int:
     except HTTPException as exc:
         print(exc.detail)
         return 1
-    print(f"Kész! '{user['username']}' admin fiók létrehozva. A regisztráció zárva van,")
-    print("a Beállításokban nyithatod meg, ha másnak is adnál hozzáférést.")
+    print(f"Kész! '{user['username']}' admin fiók létrehozva.")
+    print("Mások sima (nem admin) fiókot regisztrálhatnak; ezt az Admin beállításokban kapcsolhatod ki.")
     return 0
 
 

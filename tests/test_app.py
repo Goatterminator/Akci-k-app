@@ -30,9 +30,8 @@ def test_first_user_is_admin_and_others_are_not(client):
     admin = register(client, "admin")
     assert admin["is_admin"] is True
     assert client.get("/api/settings").status_code == 200
-    # az admin létrehozása után a regisztráció alapból zárva van
-    assert client.get("/api/settings").json()["allow_registration"] == "0"
-    client.put("/api/settings", json={"allow_registration": "1"})
+    # a regisztráció nyitva marad, de a többiek sima fiókot kapnak
+    assert client.get("/api/settings").json()["allow_registration"] == "1"
 
     client.post("/api/auth/logout")
     user = register(client, "bela")
@@ -54,8 +53,9 @@ def test_api_key_is_never_returned_in_full(client):
     assert db.get_setting("gemini_api_key") == "AIzaSECRET-1234"
 
 
-def test_registration_closed_after_admin_created(client):
+def test_registration_can_be_disabled(client):
     register(client)
+    client.put("/api/settings", json={"allow_registration": "0"})
     client.post("/api/auth/logout")
     r = client.post("/api/auth/register", json={"username": "masik", "password": "jelszo99"})
     assert r.status_code == 403
@@ -157,3 +157,39 @@ def test_login_lockout_after_many_failures(client):
     assert client.post("/api/auth/login", json={"username": "admin", "password": "titok123"}).status_code == 429
     auth._failures.clear()
     assert client.post("/api/auth/login", json={"username": "admin", "password": "titok123"}).status_code == 200
+
+
+def test_max_five_registrations_besides_admin(client):
+    register(client, "admin")
+    assert client.get("/api/settings").json()["max_registrations"] == "5"
+    client.post("/api/auth/logout")
+    for i in range(5):
+        user = register(client, f"user{i}")
+        assert user["is_admin"] is False
+        client.post("/api/auth/logout")
+    r = client.post("/api/auth/register", json={"username": "hatodik", "password": "jelszo99"})
+    assert r.status_code == 403 and "Betelt" in r.json()["detail"]
+
+
+def test_ai_daily_limit_for_regular_users(client, monkeypatch):
+    from app.services import gemini
+
+    async def fake_interpret(settings, query):
+        return {"keywords": ["kivi"], "category": "", "sort": "discount"}
+
+    async def fake_rank(settings, query, candidates, limit=12):
+        return {"summary": "ok", "picks": [{"id": candidates[0]["id"], "reason": "olcsó"}]}
+
+    monkeypatch.setattr(gemini, "interpret_query", fake_interpret)
+    monkeypatch.setattr(gemini, "rank_candidates", fake_rank)
+    seed()
+    register(client, "admin")
+    client.put("/api/settings", json={"gemini_api_key": "AIzaTEST", "ai_daily_limit": "2"})
+    for _ in range(4):  # az adminra nincs limit
+        assert client.post("/api/ai/search", json={"query": "kivi"}).status_code == 200
+    client.post("/api/auth/logout")
+    register(client, "bela")
+    assert client.post("/api/ai/search", json={"query": "kivi"}).json()["results"][0]["reason"] == "olcsó"
+    assert client.post("/api/ai/search", json={"query": "kivi"}).status_code == 200
+    r = client.post("/api/ai/search", json={"query": "kivi"})
+    assert r.status_code == 429 and "napi" in r.json()["detail"]
