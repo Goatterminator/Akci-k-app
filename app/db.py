@@ -74,6 +74,7 @@ CREATE TABLE IF NOT EXISTS users (
     pw_hash     TEXT NOT NULL,
     is_admin    INTEGER NOT NULL DEFAULT 0,
     ntfy_topic  TEXT,
+    ai_limit    INTEGER,          -- egyedi napi AI-keret (NULL = a közös beállítás)
     created     TEXT NOT NULL
 );
 
@@ -145,12 +146,20 @@ def _connect() -> sqlite3.Connection:
     return conn
 
 
+def _migrate(conn: sqlite3.Connection) -> None:
+    """Régebbi adatbázisok bővítése új oszlopokkal (a meglévő adatok megmaradnak)."""
+    user_cols = {r[1] for r in conn.execute("PRAGMA table_info(users)")}
+    if "ai_limit" not in user_cols:
+        conn.execute("ALTER TABLE users ADD COLUMN ai_limit INTEGER")
+
+
 def init_db() -> None:
     global _initialized_path
     with _init_lock:
         conn = _connect()
         try:
             conn.executescript(SCHEMA)
+            _migrate(conn)
             for key, value in config.DEFAULT_SETTINGS.items():
                 conn.execute(
                     "INSERT OR IGNORE INTO settings(key, value) VALUES (?, ?)", (key, value)

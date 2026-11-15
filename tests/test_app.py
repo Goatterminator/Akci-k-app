@@ -193,3 +193,68 @@ def test_ai_daily_limit_for_regular_users(client, monkeypatch):
     assert client.post("/api/ai/search", json={"query": "kivi"}).status_code == 200
     r = client.post("/api/ai/search", json={"query": "kivi"})
     assert r.status_code == 429 and "napi" in r.json()["detail"]
+
+
+def test_admin_sees_usage_and_sets_per_user_limit(client, monkeypatch):
+    from app.services import gemini
+
+    async def fake_interpret(settings, query):
+        return {"keywords": ["kivi"], "category": "", "sort": "discount"}
+
+    async def fake_rank(settings, query, candidates, limit=12):
+        return {"summary": "ok", "picks": []}
+
+    monkeypatch.setattr(gemini, "interpret_query", fake_interpret)
+    monkeypatch.setattr(gemini, "rank_candidates", fake_rank)
+    seed()
+    register(client, "admin")
+    client.put("/api/settings", json={"gemini_api_key": "AIzaTEST"})
+    client.post("/api/auth/logout")
+    bela = register(client, "bela")
+    for _ in range(3):
+        client.post("/api/ai/search", json={"query": "kivi"})
+    assert client.get("/api/meta").json()["ai_today"] == 3
+    assert client.get("/api/admin/users").status_code == 403
+
+    def login(name):
+        client.post("/api/auth/logout")
+        assert client.post("/api/auth/login", json={"username": name, "password": "titok123"}).status_code == 200
+
+    def bela_row():
+        return {u["username"]: u for u in client.get("/api/admin/users").json()["users"]}["bela"]
+
+    login("admin")
+    row = bela_row()
+    assert row["ai_today"] == 3 and row["ai_effective_limit"] == 30 and len(row["ai_week"]) == 7
+    # egyedi keret: 3 -> bela kifogyott
+    assert client.put(f"/api/admin/users/{bela['id']}", json={"ai_limit": 3}).status_code == 200
+    login("bela")
+    assert client.post("/api/ai/search", json={"query": "kivi"}).status_code == 429
+    login("admin")
+    # 0 = nem használhat AI-t; null = vissza a közös keretre
+    client.put(f"/api/admin/users/{bela['id']}", json={"ai_limit": 0})
+    assert bela_row()["ai_effective_limit"] == 0
+    client.put(f"/api/admin/users/{bela['id']}", json={"ai_limit": None})
+    assert bela_row()["ai_effective_limit"] == 30
+    # törlés
+    assert client.delete(f"/api/admin/users/{bela['id']}").status_code == 200
+    assert "bela" not in {u["username"] for u in client.get("/api/admin/users").json()["users"]}
+
+
+def test_migration_adds_ai_limit_column(tmp_path, monkeypatch):
+    import sqlite3
+
+    from app import config, db
+
+    path = tmp_path / "old.db"
+    conn = sqlite3.connect(path)
+    conn.execute("CREATE TABLE users (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT NOT NULL UNIQUE, "
+                 "pw_hash TEXT NOT NULL, is_admin INTEGER NOT NULL DEFAULT 0, ntfy_topic TEXT, created TEXT NOT NULL)")
+    conn.execute("INSERT INTO users(username, pw_hash, is_admin, created) VALUES ('vince','x',1,'2026-01-01')")
+    conn.commit()
+    conn.close()
+    monkeypatch.setattr(config, "DB_PATH", path)
+    db.init_db()
+    with db.get_conn() as c:
+        assert "ai_limit" in {r[1] for r in c.execute("PRAGMA table_info(users)")}
+        assert c.execute("SELECT username FROM users").fetchone()[0] == "vince"

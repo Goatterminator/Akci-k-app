@@ -85,6 +85,7 @@ def public_user(row: Any) -> dict[str, Any]:
         "username": row["username"],
         "is_admin": bool(row["is_admin"]),
         "ntfy_topic": row["ntfy_topic"] or "",
+        "ai_limit": row["ai_limit"] if "ai_limit" in row.keys() else None,
         "created": row["created"],
     }
 

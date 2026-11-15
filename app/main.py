@@ -154,9 +154,59 @@ async def notify_test(user: User = Depends(current_user)) -> dict[str, Any]:
 # ------------------------------------------------------------------ admin: felhasználók
 @app.get("/api/admin/users")
 def admin_users(_: User = Depends(require_admin)) -> dict[str, Any]:
+    """Felhasználók + AI-használat (csak darabszám, a keresések tartalma privát marad)."""
+    from datetime import date, timedelta
+
+    settings = db.get_settings()
+    today = date.fromisoformat(db.today())
+    days = [(today - timedelta(days=i)).isoformat() for i in range(6, -1, -1)]
     with db.get_conn() as conn:
         rows = conn.execute("SELECT * FROM users ORDER BY id").fetchall()
-    return {"users": [auth.public_user(r) for r in rows]}
+        usage: dict[int, dict[str, int]] = {}
+        for r in conn.execute("SELECT user_id, day, count FROM ai_usage WHERE day >= ?", (days[0],)):
+            usage.setdefault(r["user_id"], {})[r["day"]] = r["count"]
+        last_seen = {
+            r["user_id"]: r["ls"]
+            for r in conn.execute("SELECT user_id, MAX(last_seen) ls FROM sessions GROUP BY user_id")
+        }
+        counts = {
+            r["user_id"]: (r["f"], r["w"])
+            for r in conn.execute(
+                "SELECT u.id user_id, "
+                "(SELECT COUNT(*) FROM favorites f WHERE f.user_id=u.id) f, "
+                "(SELECT COUNT(*) FROM watches w WHERE w.user_id=u.id) w FROM users u"
+            )
+        }
+    users = []
+    for r in rows:
+        u = auth.public_user(r)
+        per_day = usage.get(u["id"], {})
+        u.update(
+            ai_today=per_day.get(days[-1], 0),
+            ai_week=[{"day": d, "count": per_day.get(d, 0)} for d in days],
+            ai_effective_limit=_effective_ai_limit(u, settings),
+            last_seen=last_seen.get(u["id"]),
+            favorites=counts.get(u["id"], (0, 0))[0],
+            watches=counts.get(u["id"], (0, 0))[1],
+        )
+        users.append(u)
+    registered = sum(1 for u in users if not u["is_admin"])
+    return {"users": users, "registered": registered,
+            "max_registrations": settings.get("max_registrations", "5"),
+            "ai_daily_limit": settings.get("ai_daily_limit", "30")}
+
+
+class AdminUserBody(BaseModel):
+    ai_limit: Optional[int] = Field(None, ge=0, le=10000)  # None = közös keret, 0 = nem használhat AI-t
+
+
+@app.put("/api/admin/users/{user_id}")
+def admin_update_user(user_id: int, body: AdminUserBody, _: User = Depends(require_admin)) -> dict[str, bool]:
+    with db.get_conn() as conn:
+        if not conn.execute("SELECT 1 FROM users WHERE id=?", (user_id,)).fetchone():
+            raise HTTPException(404, "Nincs ilyen felhasználó")
+        conn.execute("UPDATE users SET ai_limit=? WHERE id=?", (body.ai_limit, user_id))
+    return {"ok": True}
 
 
 @app.delete("/api/admin/users/{user_id}")
@@ -194,6 +244,8 @@ def meta(user: User = Depends(current_user)) -> dict[str, Any]:
         "categories": [{**c, "count": cat_counts.get(c["key"], 0)} for c in CATEGORIES],
         "stores": [{"name": n, **m, "count": counts.get(n, 0)} for n, m in STORES.items()],
         "ai_enabled": gemini.has_key(db.get_settings()),
+        "ai_today": _ai_used_today(user["id"]),
+        "ai_limit": _effective_ai_limit(user, db.get_settings()),
         "unseen_alerts": unseen,
         "refresh": refresh.STATE,
         "last_refresh": last_ok,
@@ -262,20 +314,35 @@ class AiSearchBody(BaseModel):
     only_deals: bool = False
 
 
-def _use_ai_quota(user: User, settings: dict[str, str]) -> None:
-    """Sima felhasználóknál napi AI-keret (hogy idegenek ne merítsék ki a Gemini kulcsot)."""
-    if user["is_admin"]:
-        return
+def _effective_ai_limit(user: dict[str, Any], settings: dict[str, str]) -> Optional[int]:
+    """A felhasználó napi AI-kerete; None = korlátlan (admin, vagy 0 a beállításban)."""
+    if user.get("is_admin"):
+        return None
+    if user.get("ai_limit") is not None:
+        return max(0, int(user["ai_limit"]))  # egyedi keret; 0 = nem használhat AI-t
     try:
         limit = int(float(settings.get("ai_daily_limit") or 0))
     except ValueError:
         limit = 30
-    if limit <= 0:
-        return
+    return limit if limit > 0 else None  # közös keret; 0 = korlátlan
+
+
+def _ai_used_today(user_id: int) -> int:
+    with db.get_conn() as conn:
+        row = conn.execute(
+            "SELECT count FROM ai_usage WHERE user_id=? AND day=?", (user_id, db.today())
+        ).fetchone()
+    return row["count"] if row else 0
+
+
+def _use_ai_quota(user: User, settings: dict[str, str]) -> None:
+    """Napi AI-keret ellenőrzése és számlálása (az admint is számoljuk a statisztikához,
+    de neki nincs korlátja), hogy a regisztráltak ne merítsék ki a Gemini kulcsot."""
+    limit = _effective_ai_limit(user, settings)
     day = db.today()
     with db.get_conn() as conn:
         row = conn.execute("SELECT count FROM ai_usage WHERE user_id=? AND day=?", (user["id"], day)).fetchone()
-        if row and row["count"] >= limit:
+        if limit is not None and row and row["count"] >= limit:
             raise HTTPException(429, f"Elérted a napi {limit} AI keresést. Holnap újra használhatod, "
                                      "addig a sima keresés működik.")
         conn.execute(
@@ -283,7 +350,7 @@ def _use_ai_quota(user: User, settings: dict[str, str]) -> None:
             "ON CONFLICT(user_id, day) DO UPDATE SET count=count+1",
             (user["id"], day),
         )
-        conn.execute("DELETE FROM ai_usage WHERE day < date('now', '-7 day')")
+        conn.execute("DELETE FROM ai_usage WHERE day < date('now', '-30 day')")
 
 
 def _mark_favorites(items: list[dict[str, Any]], user_id: int) -> None:

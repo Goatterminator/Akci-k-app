@@ -350,3 +350,11 @@ body.auth-mode .sidebar, body.auth-mode .bottom-nav, body.auth-mode .topbar, bod
 .auth-card { width: 100%; max-width: 400px; display: grid; gap: 14px; padding: 28px 24px; }
 .auth-card h2 { margin: 0; font-size: 22px; letter-spacing: -.02em; }
 .auth-err { color: var(--bad); min-height: 1em; }
+
+/* ------------------------------------------------------------ admin: felhasználók */
+.user-row { padding: 14px 0; border-bottom: 1px solid var(--border); }
+.user-row:last-child { border-bottom: 0; }
+.user-row .t { font-weight: 600; }
+.user-row .s { font-size: 12.5px; color: var(--text-3); }
+.bars { display: flex; align-items: flex-end; gap: 3px; height: 28px; margin: 4px 0 2px; }
+.bars .bar { width: 10px; border-radius: 3px 3px 0 0; background: var(--accent); opacity: .8; }

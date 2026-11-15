@@ -520,7 +520,8 @@ async function renderAi(root) {
         <label class="field">Min. ár (Ft)<input class="input" id="ai-min" type="number" min="0" inputmode="numeric" value="${esc(last?.min_price ?? "")}"></label>
         <label class="field">Max. ár (Ft)<input class="input" id="ai-max" type="number" min="0" inputmode="numeric" value="${esc(last?.max_price ?? "")}"></label>
       </div>
-      <label class="toggle"><input type="checkbox" id="ai-deals" ${last?.only_deals ? "checked" : ""}> Csak akciós termékek</label>
+      <div class="row"><label class="toggle"><input type="checkbox" id="ai-deals" ${last?.only_deals ? "checked" : ""}> Csak akciós termékek</label>
+        <span class="grow"></span>${META.ai_enabled && META.ai_limit != null ? `<span class="small muted" id="ai-quota">Ma: ${META.ai_today} / ${META.ai_limit} AI keresés</span>` : ""}</div>
       <div class="chips wrap" id="ai-ex">${AI_EXAMPLES.map((e) => `<button class="chip" type="button">${esc(e)}</button>`).join("")}</div>
       ${META.ai_enabled ? "" : `<div class="summary small">ℹ️ Még nincs Gemini API kulcs megadva, így egyszerű kulcsszavas keresés fut. ${isAdmin() ? `<a href="#/beallitasok">Kulcs megadása az Admin beállításokban →</a>` : "Az admin tudja beállítani."}</div>`}
     </div>
@@ -542,6 +543,7 @@ async function renderAi(root) {
     results.innerHTML = `<div class="loading"><span class="spinner"></span> ${META.ai_enabled ? "Az AI átnézi az ajánlatokat…" : "Keresés…"}</div>`;
     try {
       const data = await api("/api/ai/search", { method: "POST", body });
+      loadMeta().then(() => { const q = $("#ai-quota"); if (q && META.ai_limit != null) q.textContent = `Ma: ${META.ai_today} / ${META.ai_limit} AI keresés`; });
       const kws = (data.keywords || []).map((k) => `<span class="tag">${esc(k)}</span>`).join("");
       results.innerHTML = `
         <div class="summary">${esc(data.summary)}
@@ -811,7 +813,7 @@ async function renderSettings(root) {
         <label class="field">AI keresés / fő / nap (0 = korlátlan)<input class="input" id="s-ailimit" type="number" min="0" value="${esc(s.ai_daily_limit)}"></label>
         <label class="field">Max. regisztráció (adminon kívül, 0 = korlátlan)<input class="input" id="s-maxusers" type="number" min="0" value="${esc(s.max_registrations)}"></label>
       </div>
-      <div class="muted small">A napi AI-keret rád (adminra) nem vonatkozik; azért van, hogy a regisztrált felhasználók ne merítsék ki az ingyenes Gemini kulcsodat.</div>
+      <div class="muted small">A napi AI-keret rád (adminra) nem vonatkozik; azért van, hogy a regisztrált felhasználók ne merítsék ki az ingyenes Gemini kulcsodat. Lent felhasználónként egyedi keretet is adhatsz (0 = nem használhat AI-t). A keresések tartalmát nem tároljuk, csak a darabszámot.</div>
       <div class="row"><button class="btn primary small" id="s-save-users">Korlátok mentése</button></div>
       <div class="list" id="s-users"><div class="muted small">Betöltés…</div></div>
     </section>
@@ -875,18 +877,53 @@ async function renderSettings(root) {
   $("#s-save-ntfy").onclick = () => saveSettings({ ntfy_server: $("#s-ntfy").value.trim() || "https://ntfy.sh" });
   $("#s-reg").onchange = (e) => saveSettings({ allow_registration: e.target.checked ? "1" : "0" },
     e.target.checked ? "Regisztráció engedélyezve" : "Regisztráció letiltva");
-  $("#s-save-users").onclick = () => saveSettings({ ai_daily_limit: $("#s-ailimit").value, max_registrations: $("#s-maxusers").value });
+  $("#s-save-users").onclick = async () => {
+    await saveSettings({ ai_daily_limit: $("#s-ailimit").value, max_registrations: $("#s-maxusers").value });
+    loadUsers();
+  };
   const loadUsers = async () => {
-    const { users } = await api("/api/admin/users");
-    $("#s-users").innerHTML = users.map((u) => `
-      <div class="list-row"><div class="grow"><div class="t">${esc(u.username)} ${u.is_admin ? '<span class="tag hot">admin</span>' : ""}</div>
-        <div class="s">Regisztrált: ${fmtDate(u.created)}</div></div>
-        ${u.is_admin ? "" : `<button class="btn small ghost" data-deluser="${u.id}">Törlés</button>`}</div>`).join("");
+    const data = await api("/api/admin/users");
+    $("#s-users").innerHTML = `
+      <div class="small muted" style="padding:4px 0 8px">Regisztrált fiókok: <b>${data.registered}</b> / ${Number(data.max_registrations) ? data.max_registrations : "korlátlan"} ·
+        Közös napi AI-keret: <b>${Number(data.ai_daily_limit) ? data.ai_daily_limit : "korlátlan"}</b></div>` +
+      data.users.map((u) => {
+        const max = Math.max(1, ...u.ai_week.map((d) => d.count));
+        const bars = u.ai_week.map((d) => `<span class="bar" title="${fmtDate(d.day)}: ${d.count} AI keresés" style="height:${Math.max(2, Math.round((d.count / max) * 26))}px"></span>`).join("");
+        const lim = u.ai_effective_limit;
+        return `
+        <div class="user-row">
+          <div class="row">
+            <div class="grow"><div class="t">${esc(u.username)} ${u.is_admin ? '<span class="tag hot">admin</span>' : ""}</div>
+              <div class="s">Regisztrált: ${fmtDate(u.created)} · Utoljára aktív: ${u.last_seen ? relTime(u.last_seen) : "–"} · ⭐ ${u.favorites} · 🔔 ${u.watches}</div></div>
+            ${u.is_admin ? "" : `<button class="btn small ghost" data-deluser="${u.id}" data-name="${esc(u.username)}">🗑 Törlés</button>`}
+          </div>
+          <div class="row" style="margin-top:8px;align-items:flex-end">
+            <div>
+              <div class="s">Ma: <b>${u.ai_today}</b>${lim == null ? "" : ` / ${lim}`} AI keresés</div>
+              <div class="bars" aria-label="AI keresések az elmúlt 7 napban">${bars}</div>
+              <div class="s">elmúlt 7 nap: ${u.ai_week.reduce((a, d) => a + d.count, 0)}</div>
+            </div>
+            <span class="grow"></span>
+            ${u.is_admin ? `<span class="s">Az adminnak nincs AI-korlátja</span>` : `
+            <label class="field" style="width:150px">Egyedi napi AI-keret
+              <input class="input" type="number" min="0" placeholder="közös (${Number(data.ai_daily_limit) || "∞"})" value="${u.ai_limit ?? ""}" data-limit="${u.id}"></label>
+            <button class="btn small" data-savelimit="${u.id}">Mentés</button>`}
+          </div>
+        </div>`;
+      }).join("");
     $$("[data-deluser]").forEach((b) => (b.onclick = async () => {
-      if (!confirm("Biztosan törlöd ezt a felhasználót? A mentései és figyelői is törlődnek.")) return;
+      if (!confirm(`Biztosan törlöd „${b.dataset.name}” fiókját? A mentései és figyelői is törlődnek.`)) return;
       await api(`/api/admin/users/${b.dataset.deluser}`, { method: "DELETE" });
       toast("Felhasználó törölve");
       loadUsers();
+    }));
+    $$("[data-savelimit]").forEach((b) => (b.onclick = async () => {
+      const v = $(`[data-limit="${b.dataset.savelimit}"]`).value.trim();
+      try {
+        await api(`/api/admin/users/${b.dataset.savelimit}`, { method: "PUT", body: { ai_limit: v === "" ? null : Number(v) } });
+        toast(v === "" ? "Közös keretre állítva" : Number(v) === 0 ? "AI letiltva ennél a felhasználónál" : `Napi keret: ${v}`);
+        loadUsers();
+      } catch (e) { toast(e.message); }
     }));
   };
   loadUsers();
