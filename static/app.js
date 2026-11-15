@@ -618,9 +618,92 @@ async function renderCoupons(root) {
         <div class="grid">${data.stores[n].map((i) => dealCard(i)).join("")}</div>
       </section>`).join("") : emptyState("🍔", "Még nincsenek kuponok. Az első frissítés után itt lesznek.")}
     ${data.stores["Burger King"] && data.stores["Burger King"].some((i) => i.price == null) && !META.ai_enabled
-      ? `<div class="summary small section">💡 A Burger King kuponok ára csak a képen szerepel. Ha megadsz Gemini kulcsot, az AI kiolvassa az árakat a képekről.</div>` : ""}`;
+      ? `<div class="summary small section">💡 A Burger King kuponok ára csak a képen szerepel. Ha megadsz Gemini kulcsot, az AI kiolvassa az árakat a képekről.</div>` : ""}
+    <section class="section" id="codes">
+      <div class="section-head"><h2>🔎 Online kuponkódok</h2><span class="sub">a Picodi kuponoldalról</span></div>
+      <form class="search-wrap" id="codes-form" autocomplete="off">${ICONS.search}
+        <input class="input" id="codes-q" type="search" placeholder="Bolt keresése… (pl. Wolt, eMAG, Decathlon, McDonald's)" maxlength="60"></form>
+      <div class="chips" id="codes-suggest" style="margin-top:10px"></div>
+      <div id="codes-results"><div class="loading"><span class="spinner"></span> Kuponkódok betöltése…</div></div>
+    </section>`;
   bindCards(root);
   $("#add-manual").onclick = () => manualForm();
+  setupCouponCodes();
+}
+
+// ------------------------------------------------------------------ online kuponkódok (Picodi)
+function codeShopHtml(shop) {
+  const offers = shop.offers || [];
+  return `
+    <div class="card-box code-shop">
+      <div class="row">
+        ${shop.logo ? `<img class="code-logo" src="${esc(shop.logo)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">` : ""}
+        <div class="grow"><b>${esc(shop.name)}</b><div class="small muted">${offers.length ? `${offers.length} ajánlat` : "most nincs érvényes ajánlat"}</div></div>
+        <a class="btn small" href="${esc(shop.url)}" target="_blank" rel="noopener">Összes ↗</a>
+      </div>
+      ${offers.slice(0, 8).map((o) => `
+        <a class="code-offer" href="${esc(o.url)}" target="_blank" rel="noopener">
+          <span class="code-val ${o.type === "code" ? "is-code" : ""}">${esc(o.value || (o.type === "code" ? "KÓD" : "AKCIÓ"))}</span>
+          <span class="grow">
+            <span class="code-title">${esc(o.title)}</span>
+            <span class="code-meta">${o.type === "code" ? '<span class="tag hot">kuponkód</span>' : '<span class="tag">akció</span>'}
+              ${o.expires ? `<span>Lejár: ${fmtDate(o.expires)}</span>` : ""}</span>
+          </span>
+          <span class="code-go">${o.type === "code" ? "Kód ↗" : "Megnézem ↗"}</span>
+        </a>`).join("")}
+      ${offers.length > 8 ? `<a class="small" href="${esc(shop.url)}" target="_blank" rel="noopener">+ még ${offers.length - 8} ajánlat a Picodin ↗</a>` : ""}
+    </div>`;
+}
+
+async function setupCouponCodes() {
+  const results = $("#codes-results");
+  const suggest = $("#codes-suggest");
+  const note = `<div class="muted small" style="margin-top:10px">A kódot a Picodi oldalán fedheted fel (a „Kód ↗” oda visz). A kódokat nem mi ellenőrizzük; beváltás előtt nézd meg a feltételeket.</div>`;
+  const showShop = async (slug) => {
+    results.innerHTML = `<div class="loading"><span class="spinner"></span> Kuponok betöltése…</div>`;
+    try {
+      const shop = await api(`/api/coupon-codes/shop/${encodeURIComponent(slug)}`);
+      results.innerHTML = codeShopHtml(shop) + note;
+    } catch (e) { results.innerHTML = emptyState("😕", esc(e.message)); }
+  };
+  const renderChips = (items, title) => {
+    suggest.innerHTML = (title ? `<span class="small muted" style="align-self:center">${title}</span>` : "") +
+      items.map((s) => `<button class="chip" data-slug="${esc(s.slug)}">${esc(s.name)}</button>`).join("");
+  };
+  suggest.onclick = (e) => {
+    const b = e.target.closest("[data-slug]");
+    if (!b) return;
+    $$("[data-slug]", suggest).forEach((x) => x.classList.toggle("on", x === b));
+    showShop(b.dataset.slug);
+  };
+  let popular = [];
+  try {
+    const data = await api("/api/coupon-codes");
+    popular = data.popular;
+    renderChips(popular, "Népszerű:");
+    results.innerHTML = data.shops.length ? data.shops.map(codeShopHtml).join("") + note
+      : emptyState("🔎", "Keress rá egy boltra a kuponkódjaiért.");
+  } catch (e) {
+    results.innerHTML = emptyState("😕", esc(e.message));
+  }
+  let timer;
+  $("#codes-q").addEventListener("input", (e) => {
+    clearTimeout(timer);
+    const q = e.target.value.trim();
+    if (q.length < 2) { renderChips(popular, "Népszerű:"); return; }
+    timer = setTimeout(async () => {
+      try {
+        const { matches } = await api(`/api/coupon-codes/search?q=${encodeURIComponent(q)}`);
+        if (matches.length) renderChips(matches, "Találatok:");
+        else suggest.innerHTML = `<span class="small muted">Nincs ilyen bolt a kuponoldalon.</span>`;
+      } catch (err) { suggest.innerHTML = `<span class="small muted">${esc(err.message)}</span>`; }
+    }, 300);
+  });
+  $("#codes-form").onsubmit = (e) => {
+    e.preventDefault();
+    const first = $("[data-slug]", suggest);
+    if (first && $("#codes-q").value.trim().length >= 2) first.click();
+  };
 }
 
 function manualForm() {

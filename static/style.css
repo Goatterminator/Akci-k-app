@@ -408,3 +408,14 @@ body.auth-mode .sidebar, body.auth-mode .bottom-nav, body.auth-mode .topbar, bod
 .sp-close { position: absolute; top: 10px; right: 10px; z-index: 3; width: 36px; height: 36px; border-radius: 50%; border: 0; background: rgba(0,0,0,.55); color: #fff; display: grid; place-items: center; cursor: pointer; }
 .sp-close svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2.2; }
 .sp-spark { position: fixed; width: 9px; height: 9px; border-radius: 50%; pointer-events: none; box-shadow: 0 0 10px currentColor; }
+
+/* ------------------------------------------------------------ online kuponkódok */
+.code-shop { display: grid; gap: 4px; margin-top: 12px; }
+.code-logo { width: 44px; height: 44px; object-fit: contain; border-radius: 10px; background: #fff; padding: 4px; flex: none; }
+.code-offer { display: flex; gap: 12px; align-items: center; padding: 11px 0; border-top: 1px solid var(--border); text-decoration: none; }
+.code-offer:hover .code-title { text-decoration: underline; }
+.code-val { flex: none; min-width: 58px; text-align: center; padding: 8px 6px; border-radius: 10px; font-weight: 800; font-size: 15px; background: var(--surface-2); color: var(--text-2); border: 1.5px dashed var(--border); }
+.code-val.is-code { background: var(--accent-soft); color: var(--accent-text); border-color: var(--accent); }
+.code-title { display: block; font-weight: 500; line-height: 1.3; }
+.code-meta { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 12px; color: var(--text-3); margin-top: 4px; }
+.code-go { flex: none; font-size: 13px; font-weight: 700; color: var(--accent-text); white-space: nowrap; }

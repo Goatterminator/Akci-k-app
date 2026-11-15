@@ -7,6 +7,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 import time
 import uuid
 from contextlib import asynccontextmanager
@@ -22,7 +23,7 @@ from .auth import current_user, require_admin
 from .categories import CATEGORIES, CATEGORY_KEYS, STORES, normalize
 from .scrapers import SCRAPERS, SCRAPERS_BY_NAME
 from .scrapers.base import Deal
-from .services import gemini, notify, quota, refresh, search
+from .services import coupon_codes, gemini, notify, quota, refresh, search
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("akciok")
@@ -293,6 +294,38 @@ def games(user: User = Depends(current_user)) -> dict[str, Any]:
     upcoming.sort(key=lambda i: i.get("valid_from") or "")
     steam = search.list_deals(kinds=["deal"], category="jatek", sort="discount", limit=60, user_id=uid)["items"]
     return {"free_now": free_now, "upcoming": upcoming, "deals": steam}
+
+
+@app.get("/api/coupon-codes")
+async def coupon_codes_default(_: User = Depends(current_user)) -> dict[str, Any]:
+    """Online kuponkódok: a kiemelt boltok listája + az alapból mutatott boltok kódjai."""
+    shops = []
+    for slug in coupon_codes.DEFAULT_SHOPS:
+        try:
+            shops.append(await coupon_codes.get_shop(slug))
+        except coupon_codes.CouponCodeError as exc:
+            log.info("Kuponkód: %s", exc)
+    popular = [{"slug": s, "name": coupon_codes.pretty_name(s)} for s in coupon_codes.POPULAR]
+    return {"popular": popular, "shops": shops, "source": "Picodi", "source_url": coupon_codes.BASE}
+
+
+@app.get("/api/coupon-codes/search")
+async def coupon_codes_search(q: str = Query("", max_length=60), _: User = Depends(current_user)) -> dict[str, Any]:
+    try:
+        matches = await coupon_codes.search_shops(q)
+    except coupon_codes.CouponCodeError as exc:
+        raise HTTPException(502, str(exc)) from exc
+    return {"matches": matches}
+
+
+@app.get("/api/coupon-codes/shop/{slug}")
+async def coupon_codes_shop(slug: str, _: User = Depends(current_user)) -> dict[str, Any]:
+    if not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,60}", slug):
+        raise HTTPException(400, "Érvénytelen bolt")
+    try:
+        return await coupon_codes.get_shop(slug)
+    except coupon_codes.CouponCodeError as exc:
+        raise HTTPException(404, str(exc)) from exc
 
 
 @app.get("/api/surprise")

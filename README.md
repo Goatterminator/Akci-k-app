@@ -13,6 +13,8 @@ Egy helyen mutatja a legdurvább akciókat a nagy budapesti láncoknál, gyorsé
 | 🔔 **Figyelő** | Pl. „Nutella max 1500 Ft” vagy „Parkside -30%”. Ha megjelenik egy illő akció, szól az appban és push értesítésben is ([ntfy](https://ntfy.sh)). |
 | ✨ **AI figyelő** | Bárki bekapcsolhatja a saját figyelőjénél. Szabad szöveggel írod le, mit keresel (pl. *„olcsó jó steames játék”*), és minden frissítés után az AI dönti el, melyik új akció illik hozzá. Indoklással szól. A napi AI-keretbe számít. |
 | 🍔 **Kuponok** | KFC és Burger King app-kuponok. A BK árait a Gemini olvassa ki a kuponképekről. A McDonald's (és bármi más) akciói kézzel is felvehetők. |
+| 🔎 **Online kuponkódok** | A Kuponok oldal alján: keress rá egy boltra (pl. Wolt, eMAG, Decathlon), és megjelennek a kuponkódjai és akciói. |
+| 📳 **Rázós meglepetés** | Rázd meg a telefont (vagy 🎲), és üvegtörés-effekttel előugrik egy véletlen jó akció vagy kupon. |
 | 🎮 **Játékok** | Az Epic Games ingyenes játékai (most és hamarosan, visszaszámlálóval), a Steam legjobban értékelt akciós és ingyen megtartható játékai. |
 | ⭐ **Mentett** | Kedvenc akciók, felhasználónként. |
 | 👥 **Több felhasználó** | **Az első regisztrált felhasználó az admin.** Csak ő látja a beállításokat (API kulcs, források, felhasználók). Bárki más regisztrálhat, de ők sima (nem admin) fiókot kapnak, napi AI-kerettel. |
@@ -29,6 +31,7 @@ Egy helyen mutatja a legdurvább akciókat a nagy budapesti láncoknál, gyorsé
 | Epic Games Store | Epic | Heti ingyenes játékok |
 | Steam | Steam | Akciók EUR-ban, ≈ Ft átváltással |
 | emag.hu | eMAG | **Kísérleti**: az eMAG captchával védekezik, ezt az app nem kerüli meg. Otthoni IP-ről lehet, hogy átengedi. |
+| [Picodi](https://www.picodi.com/hu/) | ~280 webshop és lánc (Wolt, Foodora, McDonald's, eMAG…) | **Online kuponkódok** a Kuponok oldal alján, keresővel. A kódot a Picodin lehet felfedni (oda linkel); csak a nyilvános bolti oldalakat olvassa, boltonként max. 6 óránként |
 | *kézi* | McDonald's és bármi más | A McDonald's ajánlatai csak a MyMcDonald's appban vannak, ezért kézzel vihetők fel |
 
 A Spar, Aldi, Tesco és társaik saját oldalai blokkolják az automatikus lekérést, ezért ezek adatai az Árfigyelőből jönnek.
