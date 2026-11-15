@@ -34,7 +34,7 @@ A Spar, Aldi, Tesco és társaik saját oldalai blokkolják az automatikus leké
 
 ## Telepítés Raspberry Pi-re
 
-Kell hozzá: Raspberry Pi 3/4/5 (vagy Zero 2 W), Raspberry Pi OS, internet és a már beállított Tailscale.
+Kell hozzá: Raspberry Pi 3/4/5 (vagy Zero 2 W), Raspberry Pi OS, internet és a már beállított Tailscale. Megfér a Pi-n már futó más projektek mellett (lásd lent).
 
 ```bash
 git clone https://github.com/Goatterminator/Akci-k-app.git
@@ -50,17 +50,51 @@ bash deploy/install.sh
 
 A telepítő létrehozza a Python környezetet, és `akciok` néven systemd szolgáltatásként elindítja az appot, ami bootoláskor magától indul. A végén kiírja a címeket.
 
-Ezután nyisd meg a böngészőben a `http://<pi-tailscale-neve>:8080` címet, és **hozd létre az admin fiókot** (az első regisztráció az admin).
+### Ha már más projektek is futnak a Pi-n / Tailscale címen
 
-### HTTPS Tailscale-en (ajánlott)
+A telepítő úgy készült, hogy **ne zavarja a meglévő projektjeidet**:
 
-Az app telefonra telepítéséhez (PWA) HTTPS kell. A Tailscale ezt ingyen megadja:
+- **Port:** ha a 8080 foglalt, automatikusan az első szabad portot választja (8080–8099), és elmenti a `.env`-be, így frissítéskor is ugyanaz marad. Ha magad akarod megadni:
+
+  ```bash
+  PORT=8090 bash deploy/install.sh
+  ```
+
+- **Tailscale HTTPS:** a telepítő a `tailscale serve` beállításhoz **nem nyúl**, csak kiírja a mostanit, és javasol egy külön HTTPS portot.
+
+Nézd meg, mi fut már:
 
 ```bash
-sudo tailscale serve --bg 8080
+sudo ss -ltnp
 ```
 
-Ezután az app a `https://<pi-neve>.<tailnet>.ts.net` címen érhető el, csak a saját Tailscale hálózatodból. Telefonon: Chrome menü → *Hozzáadás a kezdőképernyőhöz*, Safari → *Megosztás → Főképernyőhöz adás*.
+```bash
+sudo tailscale serve status
+```
+
+Ezután nyisd meg a böngészőben a `http://<pi-tailscale-neve>:<port>` címet (a portot a telepítő kiírja), és **hozd létre az admin fiókot** (az első regisztráció az admin).
+
+### HTTPS Tailscale-en (ajánlott, külön porton)
+
+Az app telefonra telepítéséhez (PWA) HTTPS kell. Mivel a Tailscale címeden már vannak projektek, az appot **külön HTTPS porton** tedd ki, hogy a meglévő (443-as) beállításod megmaradjon. Az alábbi példában a 8080 helyére a telepítő által kiírt portot írd:
+
+```bash
+sudo tailscale serve --bg --https=8443 http://127.0.0.1:8080
+```
+
+Ezután az app a `https://<pi-neve>.<tailnet>.ts.net:8443` címen érhető el, csak a saját Tailscale hálózatodból.
+
+> ⚠️ **Ne** futtasd a sima `sudo tailscale serve --bg 8080` parancsot: az a 443-as HTTPS portot állítja be, és lecserélheti a másik projekted beállítását. Ha a 8443 is foglalt (`tailscale serve status`), válassz másikat, pl. `--https=10000`.
+
+A beállítás visszavonása (csak ezt az egy portot törli):
+
+```bash
+sudo tailscale serve --https=8443 off
+```
+
+Telefonon: Chrome menü → *Hozzáadás a kezdőképernyőhöz*, Safari → *Megosztás → Főképernyőhöz adás*.
+
+> A böngésző sütijei egy gépnévhez tartoznak, nem porthoz. Az app saját, egyedi nevű sütit (`akciok_session`) használ, így nem akad össze a másik projektjeid bejelentkezésével.
 
 ### Frissítés
 
