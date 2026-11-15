@@ -10,7 +10,7 @@ import logging
 import time
 import uuid
 from contextlib import asynccontextmanager
-from typing import Any
+from typing import Any, Optional
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.responses import FileResponse, JSONResponse
@@ -67,7 +67,7 @@ async def auth_middleware(request: Request, call_next):
     return await call_next(request)
 
 
-def _split(value: str | None) -> list[str]:
+def _split(value: Optional[str]) -> list[str]:
     return [v.strip() for v in (value or "").split(",") if v.strip()]
 
 
@@ -122,9 +122,9 @@ def logout(request: Request, response: Response) -> dict[str, bool]:
 
 
 class ProfileBody(BaseModel):
-    ntfy_topic: str | None = Field(None, max_length=120)
-    current_password: str | None = None
-    new_password: str | None = Field(None, min_length=6, max_length=200)
+    ntfy_topic: Optional[str] = Field(None, max_length=120)
+    current_password: Optional[str] = None
+    new_password: Optional[str] = Field(None, min_length=6, max_length=200)
 
 
 @app.put("/api/me")
@@ -205,9 +205,9 @@ def deals(
     exclude: str = "",
     stores: str = "",
     kinds: str = "deal",
-    min_discount: float | None = None,
-    min_price: float | None = None,
-    max_price: float | None = None,
+    min_discount: Optional[float] = None,
+    min_price: Optional[float] = None,
+    max_price: Optional[float] = None,
     sort: str = "mix",
     favorites: bool = False,
     limit: int = Query(60, ge=1, le=200),
@@ -253,8 +253,8 @@ def coupons(user: User = Depends(current_user)) -> dict[str, Any]:
 class AiSearchBody(BaseModel):
     query: str = Field(..., min_length=2, max_length=300)
     category: str = ""
-    min_price: float | None = None
-    max_price: float | None = None
+    min_price: Optional[float] = None
+    max_price: Optional[float] = None
     stores: list[str] = []
     only_deals: bool = False
 
@@ -380,8 +380,8 @@ def favorite_remove(item_id: str, user: User = Depends(current_user)) -> dict[st
 # ------------------------------------------------------------------ figyelők / riasztások
 class WatchBody(BaseModel):
     query: str = Field(..., min_length=2, max_length=100)
-    max_price: float | None = None
-    min_discount: float | None = None
+    max_price: Optional[float] = None
+    min_discount: Optional[float] = None
     category: str = ""
 
 
@@ -443,12 +443,12 @@ def alerts_seen(user: User = Depends(current_user)) -> dict[str, bool]:
 class ManualBody(BaseModel):
     store: str = Field(..., min_length=1, max_length=60)
     title: str = Field(..., min_length=2, max_length=200)
-    price: float | None = None
-    old_price: float | None = None
+    price: Optional[float] = None
+    old_price: Optional[float] = None
     category: str = "egyeb"
-    url: str | None = Field(None, max_length=500)
-    valid_to: str | None = Field(None, pattern=r"^\d{4}-\d{2}-\d{2}$")
-    description: str | None = Field(None, max_length=500)
+    url: Optional[str] = Field(None, max_length=500)
+    valid_to: Optional[str] = Field(None, pattern=r"^\d{4}-\d{2}-\d{2}$")
+    description: Optional[str] = Field(None, max_length=500)
 
 
 @app.post("/api/manual")

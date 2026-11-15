@@ -50,7 +50,10 @@ echo "==> Akciók app telepítése ide: $APP_DIR (felhasználó: $APP_USER, port
 if ! command -v python3 >/dev/null; then
   echo "Python 3 kell: sudo apt install -y python3 python3-venv"; exit 1
 fi
-if ! python3 -c "import venv" 2>/dev/null; then
+if ! python3 -c "import sys; sys.exit(0 if sys.version_info >= (3, 9) else 1)"; then
+  echo "Legalább Python 3.9 kell (most: $(python3 --version)). Frissítsd a Raspberry Pi OS-t."; exit 1
+fi
+if ! python3 -c "import venv, ensurepip" 2>/dev/null; then
   echo "==> python3-venv telepítése"
   sudo apt-get update && sudo apt-get install -y python3-venv
 fi
@@ -58,7 +61,11 @@ fi
 echo "==> Virtuális környezet és függőségek"
 python3 -m venv "$APP_DIR/.venv"
 "$APP_DIR/.venv/bin/pip" install --upgrade pip >/dev/null
-"$APP_DIR/.venv/bin/pip" install -r "$APP_DIR/requirements.txt"
+if ! "$APP_DIR/.venv/bin/pip" install -r "$APP_DIR/requirements.txt"; then
+  echo "!! A Python csomagok telepítése nem sikerült. Próbáld meg ezt, majd futtasd újra a telepítőt:"
+  echo "   sudo apt-get install -y python3-dev build-essential libffi-dev"
+  exit 1
+fi
 
 if [ ! -f "$APP_DIR/.env" ]; then
   cp "$APP_DIR/.env.example" "$APP_DIR/.env"
@@ -94,9 +101,22 @@ WantedBy=multi-user.target
 UNIT
 
 sudo systemctl daemon-reload
-sudo systemctl enable --now akciok.service
-sleep 2
-sudo systemctl --no-pager --lines=5 status akciok.service || true
+sudo systemctl enable akciok.service
+sudo systemctl restart akciok.service
+echo "==> Indulás ellenőrzése..."
+OK=""
+for i in $(seq 1 15); do
+  sleep 1
+  if curl -fsS "http://127.0.0.1:$PORT/api/auth/state" >/dev/null 2>&1; then OK=1; break; fi
+done
+if [ -z "$OK" ]; then
+  echo "!! Az app nem indult el. Az utolsó naplósorok:"
+  sudo journalctl -u akciok --no-pager -n 30
+  echo
+  echo "Küldd el ezt a kimenetet, és megnézzük, mi a gond."
+  exit 1
+fi
+echo "==> Az app fut a $PORT porton."
 
 echo
 echo "==> Kész! Elérés:"
