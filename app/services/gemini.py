@@ -8,6 +8,7 @@ Funkciók:
 """
 from __future__ import annotations
 
+import asyncio
 import base64
 import hashlib
 import json
@@ -23,6 +24,10 @@ log = logging.getLogger("akciok.gemini")
 
 API = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 FALLBACK_MODEL = "gemini-2.5-flash"
+# Tartalék ingyenes modellek, ha a beállított túlterhelt / elfogyott a kerete / nem létezik
+FALLBACK_MODELS = ["gemini-2.5-flash", "gemini-2.5-flash-lite"]
+RETRYABLE_ON_NEXT_MODEL = {404, 429, 500, 503}
+RETRY_DELAY_S = 1.5
 
 
 class GeminiError(Exception):
@@ -52,24 +57,49 @@ async def generate(
         body["generationConfig"]["responseMimeType"] = "application/json"
         body["generationConfig"]["responseSchema"] = schema
 
+    # Sorrend: a beállított modell, majd tartalék ingyenes modellek. Az ingyenes keret és a
+    # túlterhelés modellenként külön van, ezért 429/503/404 esetén érdemes a következőt próbálni.
+    models = list(dict.fromkeys([model, *FALLBACK_MODELS]))
     own_client = client is None
     client = client or httpx.AsyncClient(timeout=60)
+    resp: httpx.Response | None = None
+    transport_error: Exception | None = None
     try:
-        for attempt_model in dict.fromkeys([model, FALLBACK_MODEL]):
-            resp = await client.post(
-                API.format(model=attempt_model),
-                headers={"x-goog-api-key": key, "Content-Type": "application/json"},
-                json=body,
-                timeout=60,
-            )
-            if resp.status_code == 404 and attempt_model != FALLBACK_MODEL:
-                log.warning("Gemini modell nem található: %s, váltás: %s", attempt_model, FALLBACK_MODEL)
-                continue
-            break
+        for attempt_model in models:
+            for attempt in range(2):  # túlterhelésnél egy rövid várakozás után még egyszer
+                try:
+                    resp = await client.post(
+                        API.format(model=attempt_model),
+                        headers={"x-goog-api-key": key, "Content-Type": "application/json"},
+                        json=body,
+                        timeout=60,
+                    )
+                except httpx.HTTPError as exc:
+                    transport_error, resp = exc, None
+                    break
+                if resp.status_code in (500, 503) and attempt == 0:
+                    await asyncio.sleep(RETRY_DELAY_S)
+                    continue
+                break
+            if resp is not None and resp.status_code < 300:
+                if attempt_model != model:
+                    log.info("Gemini: %s helyett %s válaszolt", model, attempt_model)
+                break
+            if resp is not None and resp.status_code not in RETRYABLE_ON_NEXT_MODEL:
+                break  # pl. rossz kulcs: másik modell sem segítene
+            log.warning("Gemini %s: %s, próbálom a következő modellt",
+                        attempt_model, resp.status_code if resp is not None else transport_error)
     finally:
         if own_client:
             await client.aclose()
 
+    if resp is None:
+        raise GeminiError(f"Nem sikerült elérni a Gemini szervert ({transport_error}). Ellenőrizd a Pi internetkapcsolatát.")
+    if resp.status_code in (500, 503):
+        raise GeminiError("A Google Gemini szervere most túlterhelt (HTTP 503). Ez nem a kulcsod hibája, "
+                          "próbáld újra pár perc múlva.")
+    if resp.status_code == 404:
+        raise GeminiError(f"A(z) „{model}” modell nem található. Írd be a Modell mezőbe: gemini-2.5-flash")
     if resp.status_code == 429:
         raise GeminiError("Elérted az ingyenes Gemini keret percenkénti/napi limitjét. Próbáld újra kicsit később.")
     if resp.status_code in (400, 401, 403):
