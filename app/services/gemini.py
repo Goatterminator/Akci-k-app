@@ -13,6 +13,7 @@ import base64
 import hashlib
 import json
 import logging
+import re
 from typing import Any
 
 import httpx
@@ -23,11 +24,21 @@ from ..categories import CATEGORIES
 log = logging.getLogger("akciok.gemini")
 
 API = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
-FALLBACK_MODEL = "gemini-2.5-flash"
-# Tartalék ingyenes modellek, ha a beállított túlterhelt / elfogyott a kerete / nem létezik
-FALLBACK_MODELS = ["gemini-2.5-flash", "gemini-2.5-flash-lite"]
+MODELS_URL = "https://generativelanguage.googleapis.com/v1beta/models"
+DEFAULT_MODEL = "gemini-flash-latest"
+# Első körös tartalékok. Ha ezek sem léteznek (a Google időnként kivezet modelleket),
+# lekérdezzük a kulccsal ténylegesen elérhető modelleket, és azokból választunk.
+FALLBACK_MODELS = ["gemini-flash-latest", "gemini-flash-lite-latest"]
 RETRYABLE_ON_NEXT_MODEL = {404, 429, 500, 503}
 RETRY_DELAY_S = 1.5
+MAX_DISCOVERED_TRIES = 4
+
+# Ezek nem szöveges csevegő modellek, nem használhatók a kereséshez
+_EXCLUDE = ("embedding", "tts", "image", "audio", "live", "native", "aqa", "robotics",
+            "computer-use", "learnlm", "veo", "imagen", "thinking-exp", "vision")
+
+
+LAST_MODEL: str | None = None  # az utoljára sikeresen válaszoló modell (a teszt gombhoz)
 
 
 class GeminiError(Exception):
@@ -36,6 +47,82 @@ class GeminiError(Exception):
 
 def has_key(settings: dict[str, str]) -> bool:
     return bool((settings.get("gemini_api_key") or "").strip())
+
+
+def _version(name: str) -> float:
+    m = re.search(r"gemini-(\d+(?:\.\d+)?)", name)
+    return float(m.group(1)) if m else 0.0
+
+
+def rank_models(names: list[str]) -> list[str]:
+    """Használható modellek, a legjobb választás elöl: Flash > Flash-Lite > egyéb,
+    stabil > preview/exp, `-latest` alias és újabb verzió előnyben."""
+    usable = [n for n in names if n.startswith("gemini") and not any(x in n for x in _EXCLUDE)]
+
+    def key(n: str):
+        family = 0 if ("flash" in n and "lite" not in n) else 1 if "flash" in n else 2
+        unstable = 1 if any(x in n for x in ("preview", "exp")) else 0
+        return (family, unstable, 0 if n.endswith("-latest") else 1, -_version(n), n)
+
+    return sorted(dict.fromkeys(usable), key=key)
+
+
+async def list_models(settings: dict[str, str], client: httpx.AsyncClient | None = None,
+                      force: bool = False) -> list[str]:
+    """A kulccsal elérhető, szöveggenerálásra képes modellek (12 órán át gyorsítótárazva)."""
+    key = (settings.get("gemini_api_key") or "").strip()
+    if not key:
+        raise GeminiError("Nincs megadva Gemini API kulcs (Beállítások).")
+    cache_key = "gemini_models:" + hashlib.sha1(key.encode()).hexdigest()[:12]
+    if not force:
+        cached = db.cache_get(cache_key, max_age_s=12 * 3600)
+        if cached:
+            return cached
+    own_client = client is None
+    client = client or httpx.AsyncClient(timeout=30)
+    names: list[str] = []
+    try:
+        token = None
+        for _ in range(10):
+            params = {"pageSize": 1000}
+            if token:
+                params["pageToken"] = token
+            resp = await client.get(MODELS_URL, params=params, headers={"x-goog-api-key": key}, timeout=30)
+            if resp.status_code in (400, 401, 403):
+                raise GeminiError("A Gemini API kulcs érvénytelen vagy nincs engedélyezve.")
+            if resp.status_code >= 300:
+                raise GeminiError(f"Nem sikerült lekérni a modelleket (HTTP {resp.status_code}).")
+            data = resp.json()
+            for m in data.get("models") or []:
+                if "generateContent" in (m.get("supportedGenerationMethods") or []):
+                    names.append((m.get("name") or "").removeprefix("models/"))
+            token = data.get("nextPageToken")
+            if not token:
+                break
+    except httpx.HTTPError as exc:
+        raise GeminiError(f"Nem sikerült elérni a Gemini szervert ({exc}).") from exc
+    finally:
+        if own_client:
+            await client.aclose()
+    ranked = rank_models([n for n in names if n])
+    db.cache_set(cache_key, ranked)
+    return ranked
+
+
+async def _post(client: httpx.AsyncClient, key: str, model: str, body: dict[str, Any]) -> httpx.Response:
+    resp = None
+    for attempt in range(2):  # túlterhelésnél rövid várakozás után még egyszer
+        resp = await client.post(
+            API.format(model=model),
+            headers={"x-goog-api-key": key, "Content-Type": "application/json"},
+            json=body,
+            timeout=60,
+        )
+        if resp.status_code in (500, 503) and attempt == 0:
+            await asyncio.sleep(RETRY_DELAY_S)
+            continue
+        break
+    return resp
 
 
 async def generate(
@@ -48,7 +135,7 @@ async def generate(
     key = (settings.get("gemini_api_key") or "").strip()
     if not key:
         raise GeminiError("Nincs megadva Gemini API kulcs (Beállítások).")
-    model = (settings.get("gemini_model") or FALLBACK_MODEL).strip()
+    model = (settings.get("gemini_model") or DEFAULT_MODEL).strip()
     body: dict[str, Any] = {
         "contents": [{"role": "user", "parts": parts}],
         "generationConfig": {"temperature": temperature},
@@ -57,51 +144,66 @@ async def generate(
         body["generationConfig"]["responseMimeType"] = "application/json"
         body["generationConfig"]["responseSchema"] = schema
 
-    # Sorrend: a beállított modell, majd tartalék ingyenes modellek. Az ingyenes keret és a
-    # túlterhelés modellenként külön van, ezért 429/503/404 esetén érdemes a következőt próbálni.
-    models = list(dict.fromkeys([model, *FALLBACK_MODELS]))
     own_client = client is None
     client = client or httpx.AsyncClient(timeout=60)
     resp: httpx.Response | None = None
     transport_error: Exception | None = None
+    statuses: dict[str, int] = {}
+    used_model = model
     try:
-        for attempt_model in models:
-            for attempt in range(2):  # túlterhelésnél egy rövid várakozás után még egyszer
-                try:
-                    resp = await client.post(
-                        API.format(model=attempt_model),
-                        headers={"x-goog-api-key": key, "Content-Type": "application/json"},
-                        json=body,
-                        timeout=60,
-                    )
-                except httpx.HTTPError as exc:
-                    transport_error, resp = exc, None
-                    break
-                if resp.status_code in (500, 503) and attempt == 0:
-                    await asyncio.sleep(RETRY_DELAY_S)
-                    continue
+        queue = list(dict.fromkeys([model, *FALLBACK_MODELS]))
+        discovered = False
+        while queue:
+            attempt_model = queue.pop(0)
+            if attempt_model in statuses:
+                continue
+            try:
+                resp = await _post(client, key, attempt_model, body)
+            except httpx.HTTPError as exc:
+                transport_error, resp = exc, None
                 break
-            if resp is not None and resp.status_code < 300:
-                if attempt_model != model:
-                    log.info("Gemini: %s helyett %s válaszolt", model, attempt_model)
+            statuses[attempt_model] = resp.status_code
+            if resp.status_code < 300:
+                used_model = attempt_model
                 break
-            if resp is not None and resp.status_code not in RETRYABLE_ON_NEXT_MODEL:
+            if resp.status_code not in RETRYABLE_ON_NEXT_MODEL:
                 break  # pl. rossz kulcs: másik modell sem segítene
-            log.warning("Gemini %s: %s, próbálom a következő modellt",
-                        attempt_model, resp.status_code if resp is not None else transport_error)
+            log.warning("Gemini %s: HTTP %s, próbálom a következő modellt", attempt_model, resp.status_code)
+            if not queue and not discovered:
+                # A beégetett nevek elfogytak: kérdezzük meg a Google-t, mi érhető el ezzel a kulccsal
+                discovered = True
+                try:
+                    available = await list_models(settings, client)
+                except GeminiError as exc:
+                    log.warning("Modellek lekérése sikertelen: %s", exc)
+                    available = []
+                queue = [m for m in available if m not in statuses][:MAX_DISCOVERED_TRIES]
     finally:
         if own_client:
             await client.aclose()
 
     if resp is None:
-        raise GeminiError(f"Nem sikerült elérni a Gemini szervert ({transport_error}). Ellenőrizd a Pi internetkapcsolatát.")
-    if resp.status_code in (500, 503):
-        raise GeminiError("A Google Gemini szervere most túlterhelt (HTTP 503). Ez nem a kulcsod hibája, "
-                          "próbáld újra pár perc múlva.")
-    if resp.status_code == 404:
-        raise GeminiError(f"A(z) „{model}” modell nem található. Írd be a Modell mezőbe: gemini-2.5-flash")
-    if resp.status_code == 429:
-        raise GeminiError("Elérted az ingyenes Gemini keret percenkénti/napi limitjét. Próbáld újra kicsit később.")
+        raise GeminiError(f"Nem sikerült elérni a Gemini szervert ({transport_error}). "
+                          "Ellenőrizd a Pi internetkapcsolatát.")
+    global LAST_MODEL
+    if resp.status_code < 300:
+        LAST_MODEL = used_model
+    if resp.status_code < 300 and used_model != model:
+        log.info("Gemini: %s helyett %s válaszolt", model, used_model)
+        if statuses.get(model) == 404:
+            # a beállított modell már nem létezik: elmentjük a működőt, hogy legközelebb azzal induljon
+            db.set_settings({"gemini_model": used_model})
+    if resp.status_code >= 300:
+        codes = set(statuses.values())
+        if codes & {500, 503}:
+            raise GeminiError("A Google Gemini szervere most túlterhelt (HTTP 503). Ez nem a kulcsod hibája, "
+                              "próbáld újra pár perc múlva.")
+        if 429 in codes:
+            raise GeminiError("Elérted az ingyenes Gemini keret percenkénti/napi limitjét. "
+                              "Próbáld újra kicsit később.")
+        if codes == {404}:
+            raise GeminiError("Egyik próbált modell sem érhető el ezzel a kulccsal. Kattints az "
+                              "„Elérhető modellek” gombra, és válassz a listából.")
     if resp.status_code in (400, 401, 403):
         msg = ""
         try:

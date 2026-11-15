@@ -683,7 +683,22 @@ async def ai_test(_: User = Depends(require_admin)) -> dict[str, Any]:
         text = await gemini.generate(db.get_settings(), [{"text": "Válaszolj egy szóval: működik?"}])
     except gemini.GeminiError as exc:
         return {"ok": False, "message": str(exc)}
-    return {"ok": True, "message": f"A Gemini válaszolt: {str(text).strip()[:80]}"}
+    return {
+        "ok": True,
+        "model": gemini.LAST_MODEL,
+        "current_model": db.get_setting("gemini_model"),
+        "message": f"Működik! Modell: {gemini.LAST_MODEL} · válasz: {str(text).strip()[:60]}",
+    }
+
+
+@app.get("/api/ai/models")
+async def ai_models(refresh: bool = False, _: User = Depends(require_admin)) -> dict[str, Any]:
+    """A kulccsal elérhető modellek, a javasolt elöl."""
+    try:
+        models = await gemini.list_models(db.get_settings(), force=refresh)
+    except gemini.GeminiError as exc:
+        raise HTTPException(502, str(exc)) from exc
+    return {"models": models, "recommended": models[0] if models else None}
 
 
 # ------------------------------------------------------------------ statikus frontend

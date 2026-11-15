@@ -803,7 +803,9 @@ async function renderSettings(root) {
         <label class="field" style="grid-column:1/-1">API kulcs<input class="input" id="s-key" type="password" autocomplete="off" placeholder="AIza…" value="${esc(s.gemini_api_key)}"></label>
         <label class="field">Modell<input class="input" id="s-model" value="${esc(s.gemini_model)}" placeholder="gemini-flash-latest"></label>
       </div>
-      <div class="row"><button class="btn primary" id="s-save-ai">Mentés</button><button class="btn" id="s-test-ai">Kapcsolat tesztelése</button><span class="small" id="s-ai-msg"></span></div>
+      <div class="row"><button class="btn primary" id="s-save-ai">Mentés</button><button class="btn" id="s-test-ai">Kapcsolat tesztelése</button><button class="btn" id="s-models">Elérhető modellek</button></div>
+      <div class="small" id="s-ai-msg"></div>
+      <div class="chips wrap" id="s-model-list"></div>
     </section>
 
     <section class="card-box section" style="display:grid;gap:12px">
@@ -870,9 +872,33 @@ async function renderSettings(root) {
   $("#s-save-ai").onclick = () => saveSettings({ gemini_api_key: $("#s-key").value.trim(), gemini_model: $("#s-model").value.trim() });
   $("#s-test-ai").onclick = async () => {
     await saveSettings({ gemini_api_key: $("#s-key").value.trim(), gemini_model: $("#s-model").value.trim() }, "Mentve, tesztelés…");
-    $("#s-ai-msg").innerHTML = '<span class="spinner"></span>';
+    $("#s-ai-msg").innerHTML = '<span class="spinner"></span> Tesztelés… (túlterhelésnél több modellt is kipróbál)';
     const r = await api("/api/ai/test", { method: "POST" });
     $("#s-ai-msg").innerHTML = `<span style="color:${r.ok ? "var(--good)" : "var(--bad)"}">${esc(r.message)}</span>`;
+    if (r.ok && r.current_model) $("#s-model").value = r.current_model;
+  };
+  $("#s-models").onclick = async () => {
+    const keyVal = $("#s-key").value.trim();
+    if (keyVal && !keyVal.startsWith("•")) await saveSettings({ gemini_api_key: keyVal }, "Kulcs mentve");
+    const list = $("#s-model-list");
+    list.innerHTML = '<span class="small muted"><span class="spinner"></span> Modellek lekérése…</span>';
+    try {
+      const r = await api("/api/ai/models?refresh=true");
+      if (!r.models.length) {
+        list.innerHTML = '<span class="small muted">Nincs használható modell ehhez a kulcshoz.</span>';
+        return;
+      }
+      list.innerHTML = '<div class="small muted" style="width:100%">Kattints egy modellre (a ⭐ a javasolt):</div>' +
+        r.models.slice(0, 16).map((m, i) =>
+          `<button class="chip ${m === $("#s-model").value ? "on" : ""}" data-model="${esc(m)}">${i === 0 ? "⭐ " : ""}${esc(m)}</button>`).join("");
+      $$("[data-model]").forEach((b) => (b.onclick = async () => {
+        $("#s-model").value = b.dataset.model;
+        $$("[data-model]").forEach((x) => x.classList.toggle("on", x === b));
+        await saveSettings({ gemini_model: b.dataset.model }, `Modell: ${b.dataset.model}`);
+      }));
+    } catch (e) {
+      list.innerHTML = `<span class="small" style="color:var(--bad)">${esc(e.message)}</span>`;
+    }
   };
   $("#s-save-ntfy").onclick = () => saveSettings({ ntfy_server: $("#s-ntfy").value.trim() || "https://ntfy.sh" });
   $("#s-reg").onchange = (e) => saveSettings({ allow_registration: e.target.checked ? "1" : "0" },
