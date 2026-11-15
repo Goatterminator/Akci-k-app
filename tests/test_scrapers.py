@@ -7,7 +7,7 @@ from app.categories import guess_category, normalize
 from app.scrapers.arfigyelo import parse_products
 from app.scrapers.base import Deal, parse_price
 from app.scrapers.emag import _looks_blocked, parse_emag
-from app.scrapers.fastfood import parse_burgerking, parse_kfc
+from app.scrapers.fastfood import find_bk_app_link, parse_burgerking, parse_kfc
 from app.scrapers.games import parse_epic, parse_steam
 from app.scrapers.lidl import lidl_category, parse_items
 
@@ -78,6 +78,8 @@ def test_kfc_parse():
     assert len(deals) == 3
     assert deals[0].title == "2xSajtburger + kis sült burgonya"
     assert deals[0].price == 1750 and deals[0].kind == "coupon"
+    app = deals[0].extra["app"]
+    assert app["link"] == "https://kfc.hu/kuponok" and app["android_package"] == "com.kfc_hu"
 
 
 def test_burgerking_parse():
@@ -85,6 +87,12 @@ def test_burgerking_parse():
     assert len(deals) == 2
     assert all(d.image and d.extra.get("needs_price_ocr") for d in deals)
     assert all(not d.title.startswith("K0") for d in deals)
+    assert all(d.extra["app"]["android_package"] == "com.expremio.burgerking" for d in deals)
+    # a kuponoldalról kiolvasott app-link felülírja az alapértelmezettet
+    page = '<div id="coupon-4373"> <a href="https://burgerkinghu.app.link/UJ123">x</a></div>'
+    link = find_bk_app_link(page)
+    assert link == "https://burgerkinghu.app.link/UJ123"
+    assert parse_burgerking(load("burgerking_coupons.json"), link)[0].extra["app"]["link"] == link
 
 
 def test_emag_parse_and_block_detection():

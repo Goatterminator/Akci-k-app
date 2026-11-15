@@ -17,6 +17,25 @@ KFC_URL = "https://kfc.hu/kuponok"
 BK_API = "https://burgerking.hu/wp-json/wp/v2/coupons"
 BK_PAGE = "https://burgerking.hu/kuponjaink/"
 
+# App-megnyitó adatok. A kfc.hu és a BK app-linkje (Branch) a láncok saját appjához van
+# regisztrálva (Android App Links / iOS Universal Links), így telefonon az appot nyitják meg.
+# Konkrét kuponra mutató nyilvános linket egyik lánc sem ad: az app a kuponoknál nyílik meg.
+KFC_APP = {
+    "name": "KFC",
+    "link": KFC_URL,
+    "android_package": "com.kfc_hu",
+    "play": "https://play.google.com/store/apps/details?id=com.kfc_hu",
+    "appstore": "https://apps.apple.com/hu/app/kfc-magyarorsz%C3%A1g/id1358657152",
+}
+BK_APP_LINK_DEFAULT = "https://burgerkinghu.app.link/yQBrwHwcqNb"  # a burgerking.hu saját kuponlinkje
+BK_APP = {
+    "name": "Burger King",
+    "link": BK_APP_LINK_DEFAULT,
+    "android_package": "com.expremio.burgerking",
+    "play": "https://play.google.com/store/apps/details?id=com.expremio.burgerking",
+    "appstore": "https://apps.apple.com/hu/app/burger-king/id1427220042",
+}
+
 
 def _clean(text: str | None) -> str:
     return re.sub(r"\s+", " ", html.unescape(text or "")).strip()
@@ -55,6 +74,7 @@ def parse_kfc(page_html: str) -> list[Deal]:
                 image=img_el.get("src") if img_el else None,
                 url=KFC_URL,
                 badge=f"Kupon #{number.group(1)}" if number else "Kupon",
+                extra={"app": KFC_APP},
                 description=desc if desc and desc.lower() != name.lower() else None,
             )
         )
@@ -82,7 +102,13 @@ def _bk_image(item: dict[str, Any]) -> str | None:
     return m.group(1) if m else None
 
 
-def parse_burgerking(items: list[dict[str, Any]]) -> list[Deal]:
+def find_bk_app_link(page_html: str) -> str | None:
+    """A burgerking.hu kuponoldalán a kuponok mögötti app-link (Branch)."""
+    m = re.search(r'id="coupon-\d+".*?<a href="(https://[a-z0-9.-]*app\.link/[^"]+)"', page_html, re.S)
+    return m.group(1) if m else None
+
+
+def parse_burgerking(items: list[dict[str, Any]], app_link: str | None = None) -> list[Deal]:
     deals: list[Deal] = []
     for item in items:
         title = _clean((item.get("title") or {}).get("rendered"))
@@ -102,7 +128,7 @@ def parse_burgerking(items: list[dict[str, Any]]) -> list[Deal]:
                 url=f"{BK_PAGE}?coupon={item.get('id')}",
                 badge=f"Kupon {code.group(1)}" if code else "Kupon",
                 description=nice_title if excerpt else None,
-                extra={"needs_price_ocr": True},
+                extra={"needs_price_ocr": True, "app": dict(BK_APP, link=app_link or BK_APP_LINK_DEFAULT)},
             )
         )
     return deals
@@ -116,4 +142,10 @@ class BurgerKingScraper(Scraper):
 
     async def fetch(self, ctx: ScrapeContext) -> list[Deal]:
         resp = await get_with_retry(ctx.client, BK_API, params={"per_page": 100})
-        return parse_burgerking(resp.json())
+        app_link = None
+        try:  # a BK oldal az app-linket időnként cserélheti; ha nem sikerül, marad az alap
+            page = await get_with_retry(ctx.client, BK_PAGE, retries=0)
+            app_link = find_bk_app_link(page.text)
+        except Exception as exc:  # noqa: BLE001
+            ctx.log.append(f"BK app-link nem frissült: {exc}")
+        return parse_burgerking(resp.json(), app_link)

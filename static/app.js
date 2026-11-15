@@ -210,6 +210,8 @@ function discBadge(item) {
   return "";
 }
 
+const CARD_APPS = new Map(); // tétel id -> a lánc appjának adatai (kuponoknál)
+
 function dealCard(item, { reason } = {}) {
   const color = STORE_COLORS()[item.store] || "var(--text-3)";
   const until = item.valid_to ? untilText(item.valid_to) : "";
@@ -217,6 +219,8 @@ function dealCard(item, { reason } = {}) {
   const tags = [];
   if (item.badge) tags.push(`<span class="tag ${/hűség|plus/i.test(item.badge) ? "warn" : ""}">${esc(item.badge)}</span>`);
   if (until) tags.push(`<span class="tag ${/óráig|holnap/.test(until) ? "hot" : ""}">${until}</span>`);
+  const app = item.extra && item.extra.app && item.extra.app.link ? item.extra.app : null;
+  if (app) CARD_APPS.set(item.id, app);
   const unit = item.unit_price && item.unit && item.source === "arfigyelo"
     ? `<span>${fmtNum(item.unit_price)} Ft/${esc(item.unit)}</span>`
     : item.unit && item.source === "lidl" && /=/.test(item.unit) ? `<span>${esc(item.unit)}</span>` : "";
@@ -235,8 +239,30 @@ function dealCard(item, { reason } = {}) {
       </div>
       ${hufHint(item) || unit ? `<div class="meta">${hufHint(item) ? `<span>${hufHint(item)}</span>` : ""}${unit}</div>` : ""}
       ${reason ? `<div class="reason">✨ ${esc(reason)}</div>` : ""}
+      ${app ? `<div class="app-open">📱 Megnyitás a ${esc(app.name)} appban</div>` : ""}
     </div>
   </article>`;
+}
+
+// ------------------------------------------------------------------ lánc appjának megnyitása (kuponok)
+const IS_ANDROID = /Android/i.test(navigator.userAgent);
+const IS_IOS = /iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+
+function appOpenUrl(app) {
+  // Androidon "intent" link: biztosan az appot nyitja meg, ha nincs telepítve, a Play Áruházat.
+  if (IS_ANDROID && app.android_package) {
+    const u = new URL(app.link);
+    return `intent://${u.host}${u.pathname}${u.search}#Intent;scheme=https;package=${app.android_package};` +
+      `S.browser_fallback_url=${encodeURIComponent(app.play || app.link)};end`;
+  }
+  // iPhone-on a lánc linkje (Universal Link) nyitja meg az appot; gépen a weboldalt.
+  return app.link;
+}
+
+function openApp(app) {
+  const url = appOpenUrl(app);
+  if (IS_ANDROID || IS_IOS) window.location.href = url;  // ugyanabban a lapon: így vált át az appra
+  else window.open(url, "_blank", "noopener");
 }
 
 function bindCards(root) {
@@ -248,7 +274,11 @@ function bindCards(root) {
       return;
     }
     const card = e.target.closest(".deal");
-    if (card) openDetail(card.dataset.id);
+    if (!card) return;
+    // kupon: rányomásra a lánc appja nyílik meg (KFC, Burger King)
+    const app = CARD_APPS.get(card.dataset.id);
+    if (app) openApp(app);
+    else openDetail(card.dataset.id);
   });
   root.addEventListener("keydown", (e) => {
     if (e.key === "Enter" && e.target.classList.contains("deal")) openDetail(e.target.dataset.id);
@@ -339,7 +369,9 @@ async function openDetail(id) {
       ${item.history && item.history.length > 1 ? `<div><div class="small" style="font-weight:600;margin-bottom:6px">Árelőzmény</div>${sparkline(item.history)}</div>` : ""}
       ${others ? `<div><div class="small" style="font-weight:600">Ugyanez más boltokban</div><div class="list">${others}</div></div>` : ""}
       <div class="actions">
-        ${item.url ? `<a class="btn primary" href="${esc(item.url)}" target="_blank" rel="noopener">Megnyitás ↗</a>` : ""}
+        ${item.extra && item.extra.app && item.extra.app.link
+          ? `<button class="btn primary" id="d-app">📱 Megnyitás a ${esc(item.extra.app.name)} appban</button>`
+          : item.url ? `<a class="btn primary" href="${esc(item.url)}" target="_blank" rel="noopener">Megnyitás ↗</a>` : ""}
         <button class="btn" id="d-fav">${item.favorite ? "★ Mentve" : "☆ Mentés"}</button>
         <button class="btn" id="d-watch">🔔 Figyelő</button>
         ${item.source === "manual" && (isAdmin() || (item.extra || {}).added_by === META.user?.id) ? `<button class="btn" id="d-del">🗑 Törlés</button>` : ""}
@@ -361,6 +393,8 @@ async function openDetail(id) {
     const words = item.title.split(/\s+/).slice(0, 3).join(" ");
     location.hash = `#/figyelo?q=${encodeURIComponent(words)}`;
   };
+  const appBtn = $("#d-app");
+  if (appBtn) appBtn.onclick = () => openApp(item.extra.app);
   const del = $("#d-del");
   if (del) del.onclick = async () => {
     if (!confirm("Biztosan törlöd ezt a saját tételt?")) return;
@@ -575,7 +609,7 @@ async function renderCoupons(root) {
   const names = [...new Set([...order.filter((n) => data.stores[n]), ...Object.keys(data.stores)])];
   root.innerHTML = `
     <div class="card-box row">
-      <div class="grow small">A kuponok a láncok saját appjában válthatók be. A <b>McDonald's</b> ajánlatai csak a MyMcDonald's appban vannak, azokat (és bármilyen más akciót) kézzel is felveheted.</div>
+      <div class="grow small">📱 <b>Nyomj rá egy kuponra</b>, és megnyílik a lánc appja a kuponoknál – ott a kupon számáról (pl. „Kupon #3”) gyorsan megtalálod. A <b>McDonald's</b> ajánlatai csak a MyMcDonald's appban vannak, azokat (és bármilyen más akciót) kézzel is felveheted.</div>
       <button class="btn primary small" id="add-manual">+ Saját akció</button>
     </div>
     ${names.length ? names.map((n) => `

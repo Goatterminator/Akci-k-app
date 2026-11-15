@@ -358,3 +358,9 @@ body.auth-mode .sidebar, body.auth-mode .bottom-nav, body.auth-mode .topbar, bod
 .user-row .s { font-size: 12.5px; color: var(--text-3); }
 .bars { display: flex; align-items: flex-end; gap: 3px; height: 28px; margin: 4px 0 2px; }
 .bars .bar { width: 10px; border-radius: 3px 3px 0 0; background: var(--accent); opacity: .8; }
+
+/* ------------------------------------------------------------ kupon: app megnyitása */
+.app-open {
+  margin-top: 2px; padding: 7px 10px; border-radius: 9px; text-align: center;
+  font-size: 12.5px; font-weight: 600; background: var(--accent-soft); color: var(--accent-text);
+}
